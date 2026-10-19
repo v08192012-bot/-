@@ -124,6 +124,8 @@ public class Aura extends Function {
       .showWhen(() -> this.rotationType.isSelected("Нейро"));
    private final FloatSetting neuroFov = new FloatSetting("Поле зрения нейро", 120.0F, 30.0F, 180.0F, 1.0F)
       .showWhen(() -> this.rotationType.isSelected("Нейро"));
+   private final FloatSetting neuroSmooth = new FloatSetting("Плавность", 70.0F, 0.0F, 100.0F, 1.0F)
+      .showWhen(() -> this.rotationType.isSelected("Нейро"));
    private LivingEntity target;
    Vec2f currentRotations = new Vec2f(0.0F, 0.0F);
    Vec2f targetRotations = new Vec2f(0.0F, 0.0F);
@@ -218,7 +220,8 @@ public class Aura extends Function {
          this.skyTimeJitter,
          this.skyTimeFreeCam,
          this.neuroSpeed,
-         this.neuroFov
+         this.neuroFov,
+         this.neuroSmooth
       );
    }
 
@@ -648,6 +651,7 @@ public class Aura extends Function {
 
             this.neuroRotation.setSpeed(this.neuroSpeed.getFloatValue());
             this.neuroRotation.setFov(this.neuroFov.getFloatValue());
+            this.neuroRotation.setSmooth(this.neuroSmooth.getFloatValue());
             this.neuroRotation.setVisibleAim(clientLook.isEnabled());
             var1 = this.neuroRotation;
          } else if (this.rotationType.isSelected("SkyTime")) {

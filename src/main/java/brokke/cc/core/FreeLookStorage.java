@@ -14,6 +14,8 @@ public class FreeLookStorage {
    private static float freeYaw;
    private static float freePitch;
    private static boolean registered;
+   /** Свободная камера уже отслеживается onRotation (то есть freeYaw — это реальный взгляд). */
+   private static boolean tracked;
 
    public static FreeLookStorage a() {
       if (!registered) {
@@ -30,9 +32,15 @@ public class FreeLookStorage {
 
    public static void a(boolean var0) {
       a();
-      if (var0 && !active && mc.player != null) {
-         freeYaw = mc.player.getYaw();
-         freePitch = mc.player.getPitch();
+      if (var0 && !active) {
+         // Важно: при включении НЕ берём yaw игрока — в этот момент он уже может быть
+         // повёрнут серверной (silent) ротацией ауры, и камеру утащило бы за ней.
+         // freeYaw/freePitch и так следят за камерой в onRotation, когда режим выключен.
+         if (!tracked && mc.player != null) {
+            freeYaw = mc.player.getYaw();
+            freePitch = mc.player.getPitch();
+            tracked = true;
+         }
       }
 
       active = var0;
@@ -67,6 +75,7 @@ public class FreeLookStorage {
       } else if (mc.player != null) {
          freeYaw = var1.getYaw();
          freePitch = var1.getPitch();
+         tracked = true;
       }
    }
 }

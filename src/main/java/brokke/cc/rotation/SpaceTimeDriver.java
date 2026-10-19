@@ -13,6 +13,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class SpaceTimeDriver {
    public static final float SPAN_INIT = 20.0F;
+   private static final float FREEZE_MAX_ERROR = 10.0F;
    private static final float ATTACK_WINDOW = SpaceTimeModel.ATTACK_WINDOW;
 
    private final SpaceTimeModel model;
@@ -34,6 +35,8 @@ public final class SpaceTimeDriver {
    private int freeze;
    private boolean onTarget;
    private float sinceAttack = ATTACK_WINDOW;
+   private float smoothVelYaw;
+   private float smoothVelPitch;
 
    public SpaceTimeDriver(SpaceTimeModel model) {
       this.model = model;
@@ -49,6 +52,8 @@ public final class SpaceTimeDriver {
       this.prevStepPitch = 0.0F;
       this.freeze = 0;
       this.onTarget = false;
+      this.smoothVelYaw = 0.0F;
+      this.smoothVelPitch = 0.0F;
    }
 
    /** Выстрел: обнулить таймер "тик с момента последней атаки". */
@@ -77,6 +82,15 @@ public final class SpaceTimeDriver {
     * @param targetJumping цель в прыжке/падении (18-я фича обученной модели; у старой 17-фичевой игнорируется)
     */
    public float[] tick(float goalYaw, float goalPitch, float aimYaw, float aimPitch, double dist, float scale, int forcedSamples, int freezeBonus, boolean targetJumping) {
+      return this.tick(goalYaw, goalPitch, aimYaw, aimPitch, dist, scale, forcedSamples, freezeBonus, targetJumping, 0.0F);
+   }
+
+   /**
+    * @param smooth 0..1 — насколько сглаживать шаг модели (0 = как раньше, чистый сэмпл).
+    *               Сглаживание бьёт по «дёрганью»: вместо независимого сэмпла каждый шаг,
+    *               берётся среднее компоненты с ожиданием и добавляется инерция скорости.
+    */
+   public float[] tick(float goalYaw, float goalPitch, float aimYaw, float aimPitch, double dist, float scale, int forcedSamples, int freezeBonus, boolean targetJumping, float smooth) {
       if (this.model == null) {
          return new float[]{0.0F, 0.0F};
       }
@@ -127,8 +141,70 @@ public final class SpaceTimeDriver {
       boolean forceMove = this.freeze >= Math.min(freezeBonus, this.model.freezeCut);
       float freezeProb = SpaceTimeModel.sigmoid(o[0]);
       ThreadLocalRandom rnd = ThreadLocalRandom.current();
+      boolean frozen = !forceMove && rnd.nextFloat() < freezeProb;
 
-      if (forceMove || rnd.nextFloat() >= freezeProb) {
+      // цель ушла из-под прицела — «замирать» нельзя, иначе аура смотрит в пустоту,
+      // пока цель спокойно отходит (модель училась на живых людях, а те так не делают)
+      if (Math.abs(totalErrYaw) > FREEZE_MAX_ERROR || Math.abs(totalErrPitch) > FREEZE_MAX_ERROR) {
+         frozen = false;
+      }
+
+      if (smooth > 0.01F) {
+         // ---- сглаженный режим: ожидание смеси + инерция скорости (человечная дуга вместо сэмпла) ----
+         float intendedYaw = 0.0F;
+         float intendedPitch = 0.0F;
+
+         if (!frozen) {
+            int k = this.model.bestMixture(o);
+            intendedYaw = this.model.meanAxis(o, k, 1);
+            intendedPitch = this.model.meanAxis(o, k, 2);
+
+            // модель немного недокручивает на малых ошибках — добираем остаток мягко,
+            // иначе прицел «висит» в паре градусов от цели
+            float corr = 0.10F + 0.18F * smooth;
+            intendedYaw += wrap(totalErrYaw - intendedYaw) * corr;
+            intendedPitch += (totalErrPitch - intendedPitch) * corr;
+         }
+
+         if (forceMove && Math.abs(intendedYaw) + Math.abs(intendedPitch) < 0.2F) {
+            // залипнуть в freeze нельзя: минимальный шаг в сторону цели
+            intendedYaw = Math.copySign(Math.min(2.0F, Math.abs(totalErrYaw)), totalErrYaw);
+            intendedPitch = Math.copySign(Math.min(2.0F, Math.abs(totalErrPitch)), totalErrPitch);
+            this.freeze = 0;
+         }
+
+         // ограничение ускорения: скорость меняется плавно, без рывков между тиками
+         float response = 0.65F - 0.45F * smooth;
+         float maxAccel = 1.2F + 9.0F * (1.0F - smooth);
+         float accelYaw = Math.max(-maxAccel, Math.min(maxAccel, intendedYaw - this.smoothVelYaw));
+         float accelPitch = Math.max(-maxAccel, Math.min(maxAccel, intendedPitch - this.smoothVelPitch));
+         this.smoothVelYaw += accelYaw * response;
+         this.smoothVelPitch += accelPitch * response;
+
+         outStepYaw = scale * this.smoothVelYaw;
+         outStepPitch = scale * this.smoothVelPitch;
+
+         // не перелетаем цель (проверка уже в градусах, с учётом scale)
+         if (outStepYaw * totalErrYaw > 0.0F && Math.abs(outStepYaw) > Math.abs(totalErrYaw)) {
+            outStepYaw = Math.copySign(Math.abs(totalErrYaw) * 0.9F, outStepYaw);
+            this.smoothVelYaw = outStepYaw / Math.max(scale, 1.0E-3F);
+         }
+
+         if (outStepPitch * totalErrPitch > 0.0F && Math.abs(outStepPitch) > Math.abs(totalErrPitch)) {
+            outStepPitch = Math.copySign(Math.abs(totalErrPitch) * 0.9F, outStepPitch);
+            this.smoothVelPitch = outStepPitch / Math.max(scale, 1.0E-3F);
+         }
+
+         if (Math.abs(outStepYaw) < 0.02F && Math.abs(totalErrYaw) < 0.4F) {
+            outStepYaw = 0.0F;
+            this.smoothVelYaw = 0.0F;
+         }
+
+         if (Math.abs(outStepPitch) < 0.02F && Math.abs(totalErrPitch) < 0.4F) {
+            outStepPitch = 0.0F;
+            this.smoothVelPitch = 0.0F;
+         }
+      } else if (!frozen) {
          float bestScore = Float.MAX_VALUE;
 
          for (int s = 0; s < forcedSamples; s++) {
@@ -200,6 +276,8 @@ public final class SpaceTimeDriver {
       this.prevStepPitch = 0.0F;
       this.freeze = 0;
       this.onTarget = false;
+      this.smoothVelYaw = 0.0F;
+      this.smoothVelPitch = 0.0F;
    }
 
    private static float clamp01(float v) {

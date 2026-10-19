@@ -46,12 +46,9 @@ public class MouseMixin {
       } else {
          MinecraftClient var5 = MinecraftClient.getInstance();
          Aura var6 = Aura.INSTANCE;
-         if (var6 != null
-            && var6.l()
-            && var6.rotationType.isSelected("SkyTime")
-            && var6.skyTimeFreeCam.isEnabled()
-            && FreeLookStorage.isActive()
-            && var5.currentScreen == null) {
+         // «Наводка от первого лица» выключена (или SkyTime со свободной камерой):
+         // аура крутит игрока для сервера, а мышь двигает свободную клиентскую камеру.
+         if (var6 != null && var6.l() && FreeLookStorage.isActive() && var5.currentScreen == null) {
             float var7 = GCDUtil.a();
             FreeLookStorage.setFreeYaw(FreeLookStorage.getFreeYaw() + (float)this.cursorDeltaX * var7);
             FreeLookStorage.setFreePitch(MathHelper.clamp(FreeLookStorage.getFreePitch() + (float)this.cursorDeltaY * var7, -90.0F, 90.0F));

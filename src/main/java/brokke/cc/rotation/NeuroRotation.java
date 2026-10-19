@@ -11,22 +11,26 @@ import net.minecraft.util.math.Vec3d;
 /**
  * Режим «Нейро» для ауры.
  *
- * Это чистый выход GRU+MDN модели (SpaceTime): фичи «ошибка до цели, её скорость,
- * прошлые шаги, дистанция, таймер с последнего удара, freeze-счётчик» -> шаг модели
- * -> dyaw/dpitch за тик -> GCD-квантование под текущую чувствительность мыши.
+ * Это выход GRU+MDN модели (SpaceTime): фичи «ошибка до цели, её скорость,
+ * прошлые шаги, дистанция, таймер с последнего удара, freeze-счётчик» -> намерение
+ * модели -> dyaw/dpitch за тик -> GCD-квантование под текущую чувствительность мыши.
  *
- * В отличие от SkyTime здесь нет искусственных слоёв (easing, distraction, отвод) —
- * ровно то, что советует гайд: модель + GCD, без «сглаживающих» надстроек.
+ * В отличие от SkyTime здесь нет искусственных слоёв (easing, distraction, отвод).
+ * Вместо случайного сэмпла из смеси берётся её ожидание и пропускается через
+ * инерцию скорости с ограничением ускорения (см. SpaceTimeDriver, параметр smooth):
+ * руки человека так и двигаются — разгон, дуга, торможение. При «Плавности» 0
+ * поведение прежнее (чистый сэмпл), при 100 — максимально мягко.
  * Веса берутся из run/brokke/neuro/spacetime.bin (обученные в клиенте), иначе
  * из встроенного spacetime.bin.
  */
 public class NeuroRotation extends RotationsSystem {
    private static final long STEP_NANOS = 45000000L;
-   private static final long STATE_GAP_NANOS = 200000000L;
+   private static final long STATE_GAP_NANOS = 500000000L;
    private static final double MAX_DELTA_TIME = 0.05;
    private static final int ROTATION_PRIORITY = 1;
    private static final int FORCED_SAMPLES = 4;
    private static final float DEFAULT_SPEED = 70.0F;
+   private static final float DEFAULT_SMOOTH = 0.7F;
    private static final float DEFAULT_FOV = 120.0F;
 
    private final AimAnchor aimAnchor = new AimAnchor();
@@ -39,6 +43,8 @@ public class NeuroRotation extends RotationsSystem {
    private boolean visibleAim;
    private float speed = DEFAULT_SPEED;
    private float fov = DEFAULT_FOV;
+   /** 0 — чистый выход модели, 1 — максимально плавно (инерция + ограничение ускорения). */
+   private float smooth = DEFAULT_SMOOTH;
 
    public NeuroRotation() {
       this.a();
@@ -54,6 +60,11 @@ public class NeuroRotation extends RotationsSystem {
 
    public void setFov(float var1) {
       this.fov = MathHelper.clamp(var1, 30.0F, 180.0F);
+   }
+
+   /** @param percent 0..100 из настроек ауры */
+   public void setSmooth(float percent) {
+      this.smooth = MathHelper.clamp(percent / 100.0F, 0.0F, 1.0F);
    }
 
    /** Сброс состояния: смена цели, выключение режима, загрузка новых весов. */
@@ -161,19 +172,22 @@ public class NeuroRotation extends RotationsSystem {
          this.scale(),
          FORCED_SAMPLES,
          this.freezeBonus(),
-         !var1.isOnGround()
+         !var1.isOnGround(),
+         this.smooth
       );
       float var16 = MathHelper.wrapDegrees(this.requestedYaw + var15[0]);
       float var17 = MathHelper.clamp(this.requestedPitch + var15[1], -90.0F, 90.0F);
 
-      // GCD: живой игрок двигает мышь квантами, шаг модели тоже округляем под сенсу
+      // GCD: живой игрок двигает мышь квантами, шаг модели тоже округляем под сенсу.
+      // Округление (а не отбрасывание остатка) важно: суб-квантовые шаги иначе теряются
+      // и прицел «залипает» на полкванта в стороне от цели.
       float var18 = GCDUtil.a();
       if (var18 > 1.0E-5F) {
          float var19 = MathHelper.wrapDegrees(var16 - mc.player.getYaw());
-         var19 -= var19 % var18;
+         var19 = Math.round(var19 / var18) * var18;
          var16 = MathHelper.wrapDegrees(mc.player.getYaw() + var19);
          float var20 = var17 - mc.player.getPitch();
-         var20 -= var20 % var18;
+         var20 = Math.round(var20 / var18) * var18;
          var17 = MathHelper.clamp(mc.player.getPitch() + var20, -90.0F, 90.0F);
       }
 

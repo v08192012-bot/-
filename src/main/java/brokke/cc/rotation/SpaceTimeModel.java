@@ -218,6 +218,30 @@ public final class SpaceTimeModel {
       return (float) Math.tanh(o[1 + 6 * k + 5]) * RHO_CLAMP;
    }
 
+   /** Компонента смеси с максимальным весом (для сглаженного режима «Нейро»). */
+   public int bestMixture(float[] o) {
+      int best = 0;
+
+      for (int k = 1; k < MIXTURES; k++) {
+         if (o[1 + 6 * k] > o[1 + 6 * best]) {
+            best = k;
+         }
+      }
+
+      return best;
+   }
+
+   /**
+    * Ожидаемый шаг компоненты k по одной оси (без сэмплинга).
+    * meanIdx: 1 — yaw, 2 — pitch. Возврат в градусах, как sampleAxis.
+    */
+   public float meanAxis(float[] o, int k, int meanIdx) {
+      float mean = Math.max(-4.0F, Math.min(4.0F, o[1 + 6 * k + meanIdx]));
+      float lim = meanIdx == 1 ? this.yawLimit : this.pitchLimit;
+      float v = (float) Math.sinh(mean);
+      return Math.max(-lim, Math.min(lim, v));
+   }
+
    /** error-curve: линейная интерполяция квантилей (адаптивная сетка квантования). */
    public float errorQuantile(float q) {
       if (this.errorCurve.length == 0) {
