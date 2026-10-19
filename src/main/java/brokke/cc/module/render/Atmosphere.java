@@ -288,7 +288,7 @@ public class Atmosphere extends Function {
          return;
       }
 
-      SnowRenderer.render(this.snowColumns, this.sparkle.isToggled(), (float)this.snowRelief.getValue(), System.currentTimeMillis());
+      SnowRenderer.render(this.snowColumns, (float)this.snowRelief.getValue());
    }
 
    @EventHandler
@@ -339,6 +339,10 @@ public class Atmosphere extends Function {
             this.snowColumns.remove(key);
          } else {
             this.snowColumns.put(key, top);
+            if (this.sparkle.isToggled() && ThreadLocalRandom.current().nextInt(140) == 0) {
+               // блик на свежем снегу — редкая искорка, как отражение солнца
+               mc.particleManager.addParticle(ParticleTypes.END_ROD, x + 0.5, top + 0.14, z + 0.5, 0.0, 0.004, 0.0);
+            }
          }
       }
    }

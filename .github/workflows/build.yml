@@ -61,10 +61,15 @@ jobs:
           else
             echo "::error::ez.mixins.json has no BlockColorsMixin entry"
           fi
-          if unzip -p "$JAR" brokke/cc/render/SnowRenderer.class | strings | grep -q 'block/snow'; then
-            echo "::notice::OK: SnowRenderer uses vanilla block/snow sprite"
+          if unzip -p "$JAR" brokke/cc/render/SnowRenderer.class | strings | grep -q 'renderBlockAsEntity'; then
+            echo "::notice::OK: SnowRenderer draws the vanilla snow block model via renderBlockAsEntity"
           else
-            echo "::error::SnowRenderer does not reference vanilla block/snow"
+            echo "::error::SnowRenderer does not call BlockRenderManager.renderBlockAsEntity"
+          fi
+          if unzip -p "$JAR" brokke/cc/render/SnowRenderer.class | strings | grep -q 'SnowBlock'; then
+            echo "::notice::OK: SnowRenderer uses the vanilla Blocks.SNOW/SnowBlock state"
+          else
+            echo "::error::SnowRenderer does not reference SnowBlock"
           fi
           REFS=$(unzip -p "$JAR" brokke/cc/mixins/render/BlockColorsMixin.class | strings | grep -c 'method_' || true)
           NAMED=$(unzip -p "$JAR" brokke/cc/mixins/render/BlockColorsMixin.class | strings | grep -c 'getColor' || true)
