@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -29,11 +29,16 @@ jobs:
           # путь к JDK в gradle.properties прописан под Windows — на CI убираем
           sed -i '/org.gradle.java.home/d' gradle.properties
           chmod +x gradlew
+          java -version
+          ./gradlew --version
 
       - name: Build
-        run: ./gradlew build --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew build --no-daemon --stacktrace --console=plain 2>&1 | tee gradle.log
 
       - name: Collect jar
+        if: success()
         run: |
           mkdir -p dist
           cp build/libs/*.jar dist/
@@ -41,6 +46,7 @@ jobs:
           ls -lh dist
 
       - name: Upload artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: brokke-jar
@@ -48,6 +54,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish release
+        if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
@@ -61,3 +68,14 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          echo "=== tail of gradle.log ==="
+          tail -n 150 gradle.log 2>/dev/null || true
+          echo "=== annotations ==="
+          grep -nE "FAILURE:|What went wrong|Could not (resolve|download|find|create|copy)|error:|Caused by:|> Could not|Execution failed" gradle.log 2>/dev/null \
+            | tail -n 40 \
+            | cut -c1-900 \
+            | while IFS= read -r line; do echo "::error::${line}"; done
