@@ -16,6 +16,8 @@ public final class SpaceTimeDriver {
    private static final float ATTACK_WINDOW = SpaceTimeModel.ATTACK_WINDOW;
 
    private final SpaceTimeModel model;
+   private final int features;
+   private boolean targetJumping;
    private float[] hidden;
    private final float yawSpan = SPAN_INIT;
    private final float pitchSpan = SPAN_INIT;
@@ -35,6 +37,7 @@ public final class SpaceTimeDriver {
 
    public SpaceTimeDriver(SpaceTimeModel model) {
       this.model = model;
+      this.features = model == null ? SpaceTimeModel.FEATURES : model.features();
    }
 
    /** Сбросить состояние (смена цели / пауза). */
@@ -67,9 +70,18 @@ public final class SpaceTimeDriver {
     * @return [stepYaw, stepPitch]
     */
    public float[] tick(float goalYaw, float goalPitch, float aimYaw, float aimPitch, double dist, float scale, int forcedSamples, int freezeBonus) {
+      return this.tick(goalYaw, goalPitch, aimYaw, aimPitch, dist, scale, forcedSamples, freezeBonus, false);
+   }
+
+   /**
+    * @param targetJumping цель в прыжке/падении (18-я фича обученной модели; у старой 17-фичевой игнорируется)
+    */
+   public float[] tick(float goalYaw, float goalPitch, float aimYaw, float aimPitch, double dist, float scale, int forcedSamples, int freezeBonus, boolean targetJumping) {
       if (this.model == null) {
          return new float[]{0.0F, 0.0F};
       }
+
+      this.targetJumping = targetJumping;
 
       if (this.hidden == null) {
          this.reset(goalYaw, goalPitch, aimYaw, aimPitch);
@@ -84,7 +96,8 @@ public final class SpaceTimeDriver {
       float totalErrYaw = wrap(goalYaw - aimYaw);
       float totalErrPitch = goalPitch - aimPitch;
 
-      float[] x = new float[SpaceTimeModel.FEATURES];
+      float[] x = new float[this.features];
+      boolean jumpFeature = this.features > SpaceTimeModel.FEATURES;
       x[0] = SpaceTimeModel.squash(this.errYaw);
       x[1] = SpaceTimeModel.squash(this.errPitch);
       x[2] = SpaceTimeModel.squash(wrap(this.errYaw - this.prevErrYaw));
@@ -102,6 +115,9 @@ public final class SpaceTimeDriver {
       x[14] = this.onTarget ? 1.0F : 0.0F;
       x[15] = Math.min(this.sinceAttack, ATTACK_WINDOW) / ATTACK_WINDOW;
       x[16] = (float) this.freeze / (float) Math.max(1, this.model.freezeCut);
+      if (jumpFeature) {
+         x[SpaceTimeModel.FEATURES] = this.targetJumping ? 1.0F : 0.0F;
+      }
 
       this.hidden = this.model.gruStep(x, this.hidden);
       float[] o = this.model.head(this.hidden);

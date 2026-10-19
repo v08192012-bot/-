@@ -24,6 +24,7 @@ import brokke.cc.rotation.HolyWorldRotation;
 import brokke.cc.rotation.IdealHitUtils;
 import brokke.cc.rotation.LegitRotation;
 import brokke.cc.rotation.MultipointUtils;
+import brokke.cc.rotation.NeuroRotation;
 import brokke.cc.rotation.ReallyWorldRotation;
 import brokke.cc.rotation.Rotation2;
 import brokke.cc.rotation.RotationStorage;
@@ -92,7 +93,7 @@ import net.minecraft.world.RaycastContext.ShapeType;
 @NewFunction(name = "Aura", description = "Автоматически наводиться и бьёт таргета", category = Category.COMBAT)
 public class Aura extends Function {
    public static Aura INSTANCE;
-   public final ModeSetting rotationType = new ModeSetting("Ротация", "Legit", new String[]{"Legit", "ReallyWorld", "SkyTime"});
+   public final ModeSetting rotationType = new ModeSetting("Ротация", "Legit", new String[]{"Legit", "ReallyWorld", "SkyTime", "Нейро"});
    private final ListSetting targets = new ListSetting(
       "Таргеты", new BooleanSetting("Игроки", true), new BooleanSetting("Голые", true), new BooleanSetting("Мирные", false), new BooleanSetting("Мобы", true)
    );
@@ -119,6 +120,10 @@ public class Aura extends Function {
       .showWhen(() -> this.rotationType.isSelected("SkyTime"));
    public final BooleanSetting skyTimeFreeCam = new BooleanSetting("Свободная камера", true)
       .showWhen(() -> this.rotationType.isSelected("SkyTime"));
+   private final FloatSetting neuroSpeed = new FloatSetting("Скорость нейро", 70.0F, 50.0F, 100.0F, 1.0F)
+      .showWhen(() -> this.rotationType.isSelected("Нейро"));
+   private final FloatSetting neuroFov = new FloatSetting("Поле зрения нейро", 120.0F, 30.0F, 180.0F, 1.0F)
+      .showWhen(() -> this.rotationType.isSelected("Нейро"));
    private LivingEntity target;
    Vec2f currentRotations = new Vec2f(0.0F, 0.0F);
    Vec2f targetRotations = new Vec2f(0.0F, 0.0F);
@@ -133,9 +138,11 @@ public class Aura extends Function {
    private final ReallyWorldRotation reallyWorldRotation = new ReallyWorldRotation();
    private final AimAssistRotation aimAssistRotation = new AimAssistRotation();
    private final SkyTimeRotation skyTimeRotation = new SkyTimeRotation();
+   private final NeuroRotation neuroRotation = new NeuroRotation();
    private boolean funtimeModeActive = false;
    private boolean slothModeActive = false;
    private boolean skyTimeModeActive = false;
+   private boolean neuroModeActive = false;
    private boolean holyWorldModeActive = false;
    private float lastServerYaw;
    private float lastServerPitch;
@@ -209,7 +216,9 @@ public class Aura extends Function {
          this.skyTimeHitChance,
          this.skyTimeTurnAway,
          this.skyTimeJitter,
-         this.skyTimeFreeCam
+         this.skyTimeFreeCam,
+         this.neuroSpeed,
+         this.neuroFov
       );
    }
 
@@ -494,6 +503,7 @@ public class Aura extends Function {
          this.R();
          this.X();
          this.Y();
+         this.Z();
          if (!this.returning) {
             this.aimAssistRotation.b();
          }
@@ -547,6 +557,10 @@ public class Aura extends Function {
 
          if (!this.rotationType.isSelected("SkyTime")) {
             this.Y();
+         }
+
+         if (!this.rotationType.isSelected("Нейро")) {
+            this.Z();
          }
 
          if (!this.S()) {
@@ -626,6 +640,16 @@ public class Aura extends Function {
             this.slothRotation.setVisibleAim(false);
             this.slothRotation.a(this.j(this.target));
             var1 = this.slothRotation;
+         } else if (this.rotationType.isSelected("Нейро")) {
+            if (!this.neuroModeActive) {
+               this.neuroRotation.a();
+               this.neuroModeActive = true;
+            }
+
+            this.neuroRotation.setSpeed(this.neuroSpeed.getFloatValue());
+            this.neuroRotation.setFov(this.neuroFov.getFloatValue());
+            this.neuroRotation.setVisibleAim(clientLook.isEnabled());
+            var1 = this.neuroRotation;
          } else if (this.rotationType.isSelected("SkyTime")) {
             if (!this.skyTimeModeActive) {
                this.skyTimeRotation.a();
@@ -957,6 +981,10 @@ public class Aura extends Function {
          this.skyTimeRotation.b();
       }
 
+      if (this.rotationType.isSelected("Нейро")) {
+         this.neuroRotation.b();
+      }
+
       this.attackDelayTicks = this.L();
       this.ticksToAttack = this.attackDelayTicks;
       this.attackTimer.a();
@@ -1189,6 +1217,10 @@ public class Aura extends Function {
                return false;
             }
 
+            if (this.rotationType.isSelected("Нейро") && !this.neuroRotation.e(var1)) {
+               return false;
+            }
+
             return true;
          } else {
             return false;
@@ -1357,6 +1389,13 @@ public class Aura extends Function {
       }
    }
 
+   private void Z() {
+      if (this.neuroModeActive) {
+         this.neuroModeActive = false;
+         this.neuroRotation.a();
+      }
+   }
+
    private boolean S() {
       return this.rotationType.isSelected("HolyWorld") || this.rotationType.isSelected("Holy2");
    }
@@ -1472,6 +1511,8 @@ public class Aura extends Function {
       this.slothModeActive = false;
       this.skyTimeRotation.a();
       this.skyTimeModeActive = false;
+      this.neuroRotation.a();
+      this.neuroModeActive = false;
       this.hasServerRotation = false;
       this.holyWorldServerTarget = null;
       this.auraAttackInProgress = false;
@@ -1512,6 +1553,8 @@ public class Aura extends Function {
       this.slothModeActive = false;
       this.skyTimeRotation.a();
       this.skyTimeModeActive = false;
+      this.neuroRotation.a();
+      this.neuroModeActive = false;
       this.hasServerRotation = false;
       this.holyWorldServerTarget = null;
       this.auraAttackInProgress = false;

@@ -40,8 +40,8 @@ import net.minecraft.util.math.Vec3d;
 public final class NeuroRecorder {
    public static final NeuroRecorder INSTANCE = new NeuroRecorder();
    private static final String MODEL_RESOURCE = "assets/brokke/rotation/spacetime.bin";
-   private static final String CSV_HEADER = "x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,dyaw,dpitch,dist,yaw,pitch\n";
-   private static final int COLUMN_COUNT = 22;
+   private static final String CSV_HEADER = "x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,dyaw,dpitch,dist,yaw,pitch\n";
+   private static final int COLUMN_COUNT = 23;
    private static final int FLUSH_INTERVAL = 256;
    private static final float SPAN = SpaceTimeDriver.SPAN_INIT;
    private static final float FREEZE_EPS = 0.05F;
@@ -245,7 +245,7 @@ public final class NeuroRecorder {
       this.sinceAttack = Math.min(this.sinceAttack + 1.0F, SpaceTimeModel.ATTACK_WINDOW);
 
       float freezeCut = this.modelFreezeCut();
-      float[] x = new float[17];
+      float[] x = new float[18];
       x[0] = SpaceTimeModel.squash(errYaw);
       x[1] = SpaceTimeModel.squash(errPitch);
       x[2] = SpaceTimeModel.squash(SpaceTimeDriver.wrap(errYaw - this.prevErrYaw));
@@ -263,6 +263,8 @@ public final class NeuroRecorder {
       x[14] = Math.abs(errYaw) <= SPAN && Math.abs(errPitch) <= SPAN ? 1.0F : 0.0F;
       x[15] = Math.min(this.sinceAttack, SpaceTimeModel.ATTACK_WINDOW) / SpaceTimeModel.ATTACK_WINDOW;
       x[16] = Math.min(this.freeze, (int) freezeCut) / freezeCut;
+      // 18-я фича: цель в прыжке/падении (есть только в обученной модели; старые 17-фичевые её не читают)
+      x[17] = target.isOnGround() ? 0.0F : 1.0F;
 
       this.write(x, stepYaw, stepPitch, dist, yaw, pitch);
 

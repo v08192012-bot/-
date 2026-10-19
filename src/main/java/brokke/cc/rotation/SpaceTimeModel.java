@@ -57,9 +57,24 @@ public final class SpaceTimeModel {
             return null;
          }
 
-         try (DataInputStream in = new DataInputStream(is)) {
-            return new SpaceTimeModel(in);
-         }
+         return load(is);
+      } catch (Exception var3) {
+         return null;
+      }
+   }
+
+   /** Загрузка обученных весов из файла (run/brokke/neuro/spacetime.bin). */
+   public static SpaceTimeModel load(java.nio.file.Path path) {
+      try (InputStream is = java.nio.file.Files.newInputStream(path)) {
+         return load(is);
+      } catch (Exception var3) {
+         return null;
+      }
+   }
+
+   public static SpaceTimeModel load(InputStream input) {
+      try (DataInputStream in = new DataInputStream(input)) {
+         return new SpaceTimeModel(in);
       } catch (Exception var3) {
          return null;
       }
@@ -95,6 +110,11 @@ public final class SpaceTimeModel {
 
    public static float sigmoid(float x) {
       return 1.0F / (1.0F + (float) Math.exp(-x));
+   }
+
+   /** Сколько входных фич ждёт модель: 17 у старой (без jump), 18 у обученной в клиенте. */
+   public int features() {
+      return this.wi[0].length;
    }
 
    public float[] newHidden() {

@@ -3,6 +3,8 @@ package brokke.cc.manager;
 import brokke.cc.config.ConfigManager;
 import brokke.cc.core.FakePlayerTickHandler;
 import brokke.cc.core.NeuroRecorder;
+import brokke.cc.neuro.NeuroModels;
+import brokke.cc.neuro.NeuroTrainer;
 import brokke.cc.core.RCTCommand;
 import brokke.cc.module.Function;
 import brokke.cc.module.FunctionManager;
@@ -272,7 +274,7 @@ public class CommandManager {
                      d(" §b.goto §3<x y z> | <x z> | stop §7— §fнавигация к координатам");
                      d(" §b.mine §3<x y z> | <блок> | stop §7— §fвскапывание блока");
                       d(" §b.nav §3status | record <имя> | stop | list §7— §fуправление навигацией и рекордером");
-                      d(" §b.neuro §3record <минуты> [nobot] | stop | status §7— §fзапись датасета для нейросети SpaceTime");
+                      d(" §b.neuro §3bot | record <минуты> [nobot] | stop | train <эпох> | model | status §7— §fнейро-датасет и обучение GRU (режим ауры «Нейро»)");
                       break;
                   case "friend":
                      a(var1);
@@ -1127,15 +1129,59 @@ public class CommandManager {
 
    private static void k(String[] var0) {
       if (var0.length < 2) {
-         d("§cИспользование: §f.neuro record [минуты] [nobot] | stop | status");
+         d("§cИспользование: §f.neuro bot | record [минуты] [nobot] | stop | train [эпох] | model | status");
       } else {
          switch (var0[1].toLowerCase(Locale.ROOT)) {
             case "status":
                d(NeuroRecorder.INSTANCE.status());
+               d("§7Модель: " + NeuroModels.describe());
+               d(NeuroTrainer.status());
                break;
             case "stop":
                d(NeuroRecorder.INSTANCE.stop("вручную"));
                break;
+            case "bot": {
+               MinecraftClient var8 = MinecraftClient.getInstance();
+               if (var8.player == null || var8.world == null) {
+                  d("§cНужно быть в мире");
+                  break;
+               }
+
+               boolean var9 = FakePlayerManager.getFakePlayers().stream().anyMatch(var1x -> var1x != null && var1x.isAlive());
+               if (var9) {
+                  d("§7Бот уже есть — он стоит целью для записи. Убрать: §f.fakeplayer clear");
+                  break;
+               }
+
+               String var10 = var0.length > 2 ? String.join(" ", java.util.Arrays.copyOfRange(var0, 2, var0.length)) : "Target";
+               FakePlayerManager.a(var8.player.getEntityPos().add(var8.player.getRotationVector().multiply(3.0)), var10);
+               FakePlayerTickHandler.a(true);
+               d("§aБот заспавнен и двигается §7(стрейфы, дистанция, прыжки — так в датасет попадут скорость/ускорение/прыжок цели).");
+               d("§7Нужен §fплоский мир §7(суперплоский) и выживание; бей бота руками — §fаура должна быть выключена§7. Дальше: §f.neuro record 20");
+               break;
+            }
+            case "train": {
+               int var11 = 40;
+               if (var0.length > 2) {
+                  try {
+                     var11 = Integer.parseInt(var0[2]);
+                  } catch (NumberFormatException var12) {
+                  }
+               }
+
+               String var13 = NeuroTrainer.start(var11);
+               if (var13 != null) {
+                  d("§c" + var13);
+               } else {
+                  d("§aОбучение запущено в фоне: §f" + var11 + " эпох §7(GRU + MDN NLL). Прогресс: §f.neuro status");
+               }
+               break;
+            }
+            case "model": {
+               NeuroModels.reload();
+               d("§7Модель: " + NeuroModels.describe() + "§7, версия §f" + NeuroModels.revision());
+               break;
+            }
             case "record":
             case "rec": {
                int var1 = 20;
@@ -1176,7 +1222,7 @@ public class CommandManager {
                break;
             }
             default:
-               d("§cИспользование: §f.neuro record [минуты] [nobot] | stop | status");
+               d("§cИспользование: §f.neuro bot | record [минуты] [nobot] | stop | train [эпох] | model | status");
          }
       }
    }
@@ -1230,7 +1276,7 @@ public class CommandManager {
       COMMANDS.put("mine", new CommandManager.b("вскапывание блока по координатам или имени", List.of("<x> <y> <z>", "<блок>", "stop")));
       COMMANDS.put("nav", new CommandManager.b("управление навигацией и рекордером", List.of("status", "record", "stop", "list", "goto", "mine")));
        COMMANDS.put("baritone", new CommandManager.b("управление навигацией Baritone", List.of("status", "record", "stop", "list", "goto", "mine")));
-       COMMANDS.put("neuro", new CommandManager.b("запись датасета для нейросети SpaceTime", List.of("record", "stop", "status")));
+       COMMANDS.put("neuro", new CommandManager.b("нейросеть: бот, запись датасета, обучение GRU, модель", List.of("bot", "record", "stop", "train", "model", "status")));
       COMMANDS.put("irc", new CommandManager.b("открыть меню IRC и друзей", List.of()));
    }
 
