@@ -60,6 +60,7 @@
     "world.MixinAbstractBlockState"
   ],
     "client": [
+      "render.BlockColorsMixin",
       "gui.ChatScreenMixin",
       "gui.ChatHudMixin",
       "gui.ChatInputSuggestorMixin",

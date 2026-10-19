@@ -5,6 +5,7 @@ import brokke.cc.module.combat.AimAssist;
 import brokke.cc.module.combat.AimBot;
 import brokke.cc.module.movement.AirStuck;
 import brokke.cc.module.render.Ambience;
+import brokke.cc.module.render.Atmosphere;
 import brokke.cc.module.combat.AntiBot;
 import brokke.cc.module.render.ArmorDurability;
 import brokke.cc.module.player.AuctionHelper;
@@ -150,6 +151,7 @@ public class FunctionManager {
       a(
          new Particles(),
          new Ambience(),
+         new Atmosphere(),
          new Prediction(),
          new SwingAnimation(),
          new ViewModel(),
