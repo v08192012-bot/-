@@ -480,6 +480,16 @@ public final class NeuroTrainer {
          }
       }
 
+      // защита от расхождения: NaN-веса нельзя записывать, иначе режим «Нейро» умрёт
+      for (Params var83 : var18) {
+         for (float var84 : var83.data) {
+            if (!Float.isFinite(var84)) {
+               log("§c[Neuro] Обучение разошлось (NaN) — модель не записана, попробуй меньше эпох или больше данных");
+               return;
+            }
+         }
+      }
+
       stage = "экспорт модели";
       Path var81 = NeuroModels.file();
       Files.createDirectories(var81.getParent());
