@@ -1,0 +1,76 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "brokke.cc.mixins",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "entity.ClientPlayerEntityMixin",
+    "entity.LivingEntityMixin",
+    "entity.EntityMixin",
+    "item.ItemStackMixin",
+
+    "render.GameRendererMixin",
+    "render.InGameHudMixin",
+    "render.HeartTypeMixin",
+    "render.BlindnessFogModifierMixin",
+    "render.BossBarHudMixin",
+    "render.EntityRendererMixin",
+    "render.RawProjectionMatrixMixin",
+    "render.IGameRenderer",
+    "render.LivingEntityRendererMixin",
+    "render.PlayerEntityRendererMixin",
+    "render.InGameOverlayRendererMixin",
+    "render.WorldRendererRemovalMixin",
+    "render.WorldRendererMatrixMixin",
+    "render.ParticleManagerMixin",
+    "render.BillboardParticleSubmittableMixin",
+    "render.BillboardParticleMixin",
+    "render.EntityRenderManagerMixin",
+    "render.BlockEntityRenderManagerMixin",
+    "render.CameraMixin",
+    "render.ICameraMixin",
+    "render.SkyRenderingMixin",
+    "render.SimpleOptionMixin",
+    "render.HeldItemRendererMixin",
+    "render.TextVisitFactoryMixin",
+    "render.DrawContextMixin",
+    "render.ItemEntityRendererMixin",
+    "render.ItemEntityRenderStateMixin",
+    "render.EquipmentRendererMixin",
+    "render.RenderTickCounterMixin",
+    "render.InactivityFpsLimiterMixin",
+    "render.WindowMixin",
+    "client.MinecraftClientMixin",
+
+    "interfaces.ILivingEntity",
+    "interfaces.IClientPlayerInteractionManager",
+    "interfaces.IMinecraftClient",
+    "interfaces.ISimpleOption",
+    "interfaces.IBossBarHud",
+    "interfaces.IItemCooldownManager",
+    "interfaces.IItemCooldownEntry",
+
+    "input.KeyboardInputMixin",
+    "input.MovementInputMixin",
+    "input.MouseMixin",
+    "input.IMouse",
+    "network.ClientPlayerInteractionManagerMixin",
+    "network.ClientPlayNetworkHandlerMixin",
+    "network.ClientConnectionMixin",
+    "world.MixinAbstractBlockState"
+  ],
+    "client": [
+      "gui.ChatScreenMixin",
+      "gui.ChatHudMixin",
+      "gui.ChatInputSuggestorMixin",
+      "gui.TitleScreenMixin",
+      "gui.HandledScreenMixin",
+      "gui.RecipeBookScreenMixin"
+    ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

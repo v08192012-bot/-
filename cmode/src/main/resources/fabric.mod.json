@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "cmode",
+  "version": "1.0.0",
+  "name": "cmode",
+  "description": "Friends-only render mod: arrows and shader markers.",
+  "authors": [
+    "cmode"
+  ],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "cmode.Cmode"
+    ]
+  },
+  "mixins": [
+    "cmode.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.1",
+    "fabric-api": "*",
+    "minecraft": "1.21.11",
+    "java": ">=21"
+  }
+}

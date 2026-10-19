@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "brokke",
+  "version": "1.0.0-local",
+  "name": "Shelka new",
+  "description": "Local build without external backend, native integrations, proxies or remote widgets. Vanilla Minecraft multiplayer is supported.",
+  "authors": [
+    "Shelka new"
+  ],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "brokke.cc.Brokke"
+    ]
+  },
+  "mixins": [
+    "ez.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.1",
+    "fabric-api": "*",
+    "minecraft": "1.21.11",
+    "java": ">=21"
+  }
+}

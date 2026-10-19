@@ -1,0 +1,969 @@
+{
+  "version": 2,
+  "updated": "2026-05-30",
+  "items": [
+    {
+      "itemId": "minecraft:experience_bottle",
+      "displayName": "Бутылек с 50 ур. опыта",
+      "searchQuery": "50",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "holy-exp-bottle-value",
+          "value": "5345"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:experience_bottle",
+      "displayName": "Бутылек с 100 ур. опыта",
+      "searchQuery": "100",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "holy-exp-bottle-value",
+          "value": "30971"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:potion",
+      "displayName": "Зелье Победителя",
+      "searchQuery": "зелье победителя",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "kringeItems.type",
+          "value": "win-potion"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:netherite_pickaxe",
+      "displayName": "Кирка INFINITY",
+      "searchQuery": "кирка infinity",
+      "loreKeyword": "INFINITY",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_ENCH",
+          "key": "enchantments:foundry-enchant-custom",
+          "value": null
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:netherite_pickaxe",
+      "displayName": "Кирка STINGER",
+      "searchQuery": "кирка стингер",
+      "loreKeyword": "STINGER",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_ENCH",
+          "key": "enchantments:foundry-enchant-custom",
+          "value": null
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:netherite_pickaxe",
+      "displayName": "Кирка ETERNITY",
+      "searchQuery": "кирка eternity",
+      "loreKeyword": "ETERNITY",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_ENCH",
+          "key": "enchantments:foundry-enchant-custom",
+          "value": null
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:pufferfish_spawn_egg",
+      "displayName": "Осколочное яйцо",
+      "searchQuery": "осколочное яйцо",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "eggkeeper:isfragment",
+          "value": "default"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:totem_of_undying",
+      "displayName": "Талисман ETERNITY",
+      "searchQuery": "талисман eternity",
+      "loreKeyword": "ETERNITY",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "sphereEffect.name",
+          "value": "Eternity"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:totem_of_undying",
+      "displayName": "Талисман INFINITY",
+      "searchQuery": "талисман infinity",
+      "loreKeyword": "INFINITY",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "sphereEffect.name",
+          "value": "Infinity"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tripwire_hook",
+      "displayName": "Универсальный ключ",
+      "searchQuery": "универсальный ключ",
+      "loreKeyword": "секретным хранилищем",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "CustomModelData",
+          "value": "123433"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:player_head",
+      "displayName": "Сфера Armortality",
+      "searchQuery": "armortality",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "itemServiceId.name",
+          "value": "сфера_арморталити"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:player_head",
+      "displayName": "Сфера Immortality",
+      "searchQuery": "immortality",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "itemServiceId.name",
+          "value": "сфера_имморталити"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:ghast_spawn_egg",
+      "displayName": "Яйцо призыва гаста",
+      "searchQuery": "яйцо призыва гаста",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:clay",
+      "displayName": "Взрывчатое вещество",
+      "searchQuery": "взрывчатое вещество",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "EXPLOSIVE_SUBSTANCE"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:prismarine_shard",
+      "displayName": "Взрывная трапка",
+      "searchQuery": "взрывная трапка",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "EXPLOSIVE_TRAP"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:popped_chorus_fruit",
+      "displayName": "Трапка",
+      "searchQuery": "трапка",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "ALTERNATIVE_TRAP"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tnt",
+      "displayName": "Динамит Б2",
+      "searchQuery": "динамит б2",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "B2"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tnt",
+      "displayName": "С4 Взрывчатка",
+      "searchQuery": "с4 взрывчатка",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "C4"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tnt",
+      "displayName": "Разрывная волна",
+      "searchQuery": "разрывная волна",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "WAVE"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tnt",
+      "displayName": "Ледяная волна",
+      "searchQuery": "ледяная волна",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "ICE"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tnt",
+      "displayName": "Стиллер",
+      "searchQuery": "стиллер",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "SPAWNER"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tnt",
+      "displayName": "Надёжный стиллер",
+      "searchQuery": "надёжный стиллер",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "SPAWNER2"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:nether_star",
+      "displayName": "Стан",
+      "searchQuery": "стан",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "pyrotechnic-item.name",
+          "value": "STUN_STAR"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:dispenser",
+      "displayName": "Тнт-Пушка",
+      "searchQuery": "тнт пушка",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "litetntcannon:tnt-cannon",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:orange_dye",
+      "displayName": "Бессмертие",
+      "searchQuery": "бессмертие",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "literunes:rune-id",
+          "value": "immortality"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:red_dye",
+      "displayName": "Восстановление",
+      "searchQuery": "восстановление",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "literunes:rune-id",
+          "value": "health"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:pink_shulker_box",
+      "displayName": "Рюкзак (I уровень)",
+      "searchQuery": "рюкзак 1 уровень",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "litebackpacks:backpack",
+          "value": "mini"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:light_blue_shulker_box",
+      "displayName": "Рюкзак (II уровень)",
+      "searchQuery": "рюкзак 2 уровень",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "litebackpacks:backpack",
+          "value": "normal"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:red_shulker_box",
+      "displayName": "Рюкзак (III уровень)",
+      "searchQuery": "рюкзак 3 уровень",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "litebackpacks:backpack",
+          "value": "big"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:magenta_shulker_box",
+      "displayName": "Рюкзак (IV уровень)",
+      "searchQuery": "рюкзак 4 уровень",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "litebackpacks:backpack",
+          "value": "huge"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:lime_shulker_box",
+      "displayName": "Рюкзак Infinity",
+      "searchQuery": "рюкзак infinity",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "litebackpacks:backpack",
+          "value": "infinity"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tripwire_hook",
+      "displayName": "Обычная отмычка",
+      "searchQuery": "отмычка",
+      "loreKeyword": "Обычная",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "mysticalship:ship-barrel-key",
+          "value": "normal"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tripwire_hook",
+      "displayName": "Редкая отмычка",
+      "searchQuery": "отмычка",
+      "loreKeyword": "Редкая",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "mysticalship:ship-barrel-key",
+          "value": "rare"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tripwire_hook",
+      "displayName": "Уникальная отмычка",
+      "searchQuery": "отмычка",
+      "loreKeyword": "Уникальная",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "mysticalship:ship-barrel-key",
+          "value": "unique"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:tripwire_hook",
+      "displayName": "Секретная отмычка",
+      "searchQuery": "отмычка",
+      "loreKeyword": "Секретная",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "mysticalship:ship-barrel-key",
+          "value": "secret"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:ancient_debris",
+      "displayName": "Уникальный приват",
+      "searchQuery": "уникальный приват",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "PBV",
+          "key": "protectionstones:ispsblock",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:spawner",
+      "displayName": "Золотой Спавнер",
+      "searchQuery": "золотой спавнер",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "gs_marker",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:player_head",
+      "displayName": "Сфера Цербера",
+      "searchQuery": "сфера цербера",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "itemServiceId.name",
+          "value": "сфера_цербера"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:compass",
+      "displayName": "Особый компас",
+      "searchQuery": "особый компас",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "kringeItems.type",
+          "value": "RegionRadar"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:golden_pickaxe",
+      "displayName": "Золотая кирка Джейка",
+      "searchQuery": "золотая кирка джейка",
+      "loreKeyword": null,
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_ENCH",
+          "key": "enchantments:spawner-getter-enchant",
+          "value": null
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:netherite_sword",
+      "displayName": "Меч ETERNITY",
+      "searchQuery": "меч eternity",
+      "loreKeyword": "ETERNITY",
+      "custom": true,
+      "matchAnySword": true,
+      "markers": [
+        {
+          "type": "CUSTOM_ENCH",
+          "key": "enchantments:rich-enchant-custom",
+          "value": null
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:netherite_sword",
+      "displayName": "Меч Infinity",
+      "searchQuery": "меч infinity",
+      "loreKeyword": "Infinity",
+      "custom": true,
+      "matchAnySword": true,
+      "markers": [
+        {
+          "type": "CUSTOM_ENCH",
+          "key": "enchantments:rich-enchant-custom",
+          "value": null
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:netherite_sword",
+      "displayName": "Меч Цербера",
+      "searchQuery": "меч цербера",
+      "loreKeyword": "Цербер",
+      "custom": true,
+      "matchAnySword": true,
+      "markers": [
+        {
+          "type": "CUSTOM_ENCH",
+          "key": "enchantments:rich-enchant-custom",
+          "value": null
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:netherite_sword",
+      "displayName": "Меч Фармер",
+      "searchQuery": "фармер",
+      "loreKeyword": "Фармер",
+      "custom": true,
+      "matchAnySword": true,
+      "markers": [
+        {
+          "type": "CUSTOM_ENCH",
+          "key": "enchantments:mob-farmer-enchant",
+          "value": null
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:netherite_ingot",
+      "displayName": "Незеритовый слиток",
+      "searchQuery": "незеритовый слиток",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_block",
+      "displayName": "Незеритовый блок",
+      "searchQuery": "незеритовый блок",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:totem_of_undying",
+      "displayName": "Тотем Бессмертия",
+      "searchQuery": "тотем бессмертия",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_helmet",
+      "displayName": "Шлем ETERNITY",
+      "searchQuery": "шлем eternity",
+      "loreKeyword": "ETERNITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_chestplate",
+      "displayName": "Нагрудник ETERNITY",
+      "searchQuery": "нагрудник eternity",
+      "loreKeyword": "ETERNITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_leggings",
+      "displayName": "Поножи ETERNITY",
+      "searchQuery": "поножи eternity",
+      "loreKeyword": "ETERNITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_boots",
+      "displayName": "Ботинки ETERNITY",
+      "searchQuery": "ботинки eternity",
+      "loreKeyword": "ETERNITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_helmet",
+      "displayName": "Шлем INFINITY",
+      "searchQuery": "шлем infinity",
+      "loreKeyword": "INFINITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_chestplate",
+      "displayName": "Нагрудник INFINITY",
+      "searchQuery": "нагрудник infinity",
+      "loreKeyword": "INFINITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_leggings",
+      "displayName": "Поножи INFINITY",
+      "searchQuery": "поножи infinity",
+      "loreKeyword": "INFINITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_boots",
+      "displayName": "Ботинки INFINITY",
+      "searchQuery": "ботинки infinity",
+      "loreKeyword": "INFINITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:player_head",
+      "displayName": "Сфера на скорость 3",
+      "searchQuery": "сфера на скорость 3",
+      "loreKeyword": "Скорость III",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "itemServiceId.name",
+          "value": "легендарная_сфера_скорость"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:player_head",
+      "displayName": "Сфера Флеша",
+      "searchQuery": "сфера флеша",
+      "loreKeyword": "Скорость III",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "itemServiceId.name",
+          "value": "сфера_флеша"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:gunpowder",
+      "displayName": "Порох",
+      "searchQuery": "порох",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:golden_apple",
+      "displayName": "Золотое яблоко",
+      "searchQuery": "золотое яблоко",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:enchanted_golden_apple",
+      "displayName": "Зачарованное золотое яблоко",
+      "searchQuery": "зачарованное яблоко",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:totem_of_undying",
+      "displayName": "Талисман Stinger",
+      "searchQuery": "талисман stinger",
+      "loreKeyword": "STINGER",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "sphereEffect.name",
+          "value": "Stinger"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:snowball",
+      "displayName": "Снежок",
+      "searchQuery": "снежок",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:potion",
+      "displayName": "Зелье черепашьей мощи",
+      "searchQuery": "черепашьей",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:spawner",
+      "displayName": "Рассадник",
+      "searchQuery": "рассадник",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:diamond",
+      "displayName": "Алмаз",
+      "searchQuery": "алмаз",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:tnt",
+      "displayName": "Динамит",
+      "searchQuery": "динамит",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:tnt",
+      "displayName": "Динамит А",
+      "searchQuery": "динамит",
+      "loreKeyword": "3 раза",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:tnt",
+      "displayName": "Динамит Б",
+      "searchQuery": "динамит",
+      "loreKeyword": "10 раз",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:netherite_sword",
+      "displayName": "Незеритовый меч (Острота 7)",
+      "searchQuery": "незеритовый меч",
+      "loreKeyword": "Острота 7",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:trident",
+      "displayName": "Трезубец Infinity",
+      "searchQuery": "трезубец infinity",
+      "loreKeyword": "INFINITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:trident",
+      "displayName": "Трезубец Eternity",
+      "searchQuery": "трезубец eternity",
+      "loreKeyword": "ETERNITY",
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:elytra",
+      "displayName": "Элитры",
+      "searchQuery": "элитры",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:dragon_egg",
+      "displayName": "Осколочное яйцо энд",
+      "searchQuery": "осколочное яйцо энд",
+      "loreKeyword": null,
+      "custom": false,
+      "matchAnySword": false,
+      "markers": []
+    },
+    {
+      "itemId": "minecraft:player_head",
+      "displayName": "Мифическая сфера (Урон 3)",
+      "searchQuery": "сфера на урон 3",
+      "loreKeyword": "Урон III",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "itemServiceId.name",
+          "value": "мифическая_сфера3"
+        }
+      ]
+    },
+    {
+      "itemId": "minecraft:player_head",
+      "displayName": "Мифическая сфера (Броня 3)",
+      "searchQuery": "сфера на броня 3",
+      "loreKeyword": "Броня III",
+      "custom": true,
+      "matchAnySword": false,
+      "markers": [
+        {
+          "type": "CUSTOM_DATA",
+          "key": "itemServiceId.name",
+          "value": "мифическая_сфера2"
+        }
+      ]
+    }
+  ]
+}

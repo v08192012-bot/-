@@ -1,0 +1,9 @@
+[
+  {"applicationName":"Google Chrome","applicationId":"com.google.Chrome","engine":"CHROMIUM"},
+  {"applicationName":"Microsoft Edge","applicationId":"com.microsoft.edgemac","engine":"CHROMIUM"},
+  {"applicationName":"Brave Browser","applicationId":"com.brave.Browser","engine":"CHROMIUM"},
+  {"applicationName":"Yandex","applicationId":"ru.yandex.desktop.yandex-browser","engine":"CHROMIUM"},
+  {"applicationName":"Opera","applicationId":"com.operasoftware.Opera","engine":"CHROMIUM"},
+  {"applicationName":"Vivaldi","applicationId":"com.vivaldi.Vivaldi","engine":"CHROMIUM"},
+  {"applicationName":"Safari","applicationId":"com.apple.Safari","engine":"SAFARI"}
+]

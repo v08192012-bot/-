@@ -1,0 +1,34 @@
+{
+  "applications": [
+    {"id":"spotify","displayName":"Spotify","kind":"MUSIC_PLAYER","match":["spotify"],"serviceId":"spotify"},
+    {"id":"yandex-music","displayName":"Яндекс Музыка","kind":"MUSIC_PLAYER","match":["yandex.music","yandexmusic","ru.yandex.music"],"serviceId":"yandex-music"},
+    {"id":"apple-music","displayName":"Apple Music","kind":"MUSIC_PLAYER","match":["applemusic","apple.music","com.apple.music"],"serviceId":"apple-music"},
+    {"id":"aimp","displayName":"AIMP","kind":"MUSIC_PLAYER","match":["aimp"]},
+    {"id":"foobar2000","displayName":"foobar2000","kind":"MUSIC_PLAYER","match":["foobar2000"]},
+    {"id":"vlc","displayName":"VLC media player","kind":"VIDEO_PLAYER","match":["videolan.vlc","vlc.exe","org.videolan.vlc"]},
+    {"id":"windows-media-player","displayName":"Windows Media Player","kind":"SYSTEM_PLAYER","match":["microsoft.zunemusic","media.player","wmplayer"]},
+    {"id":"chrome","displayName":"Google Chrome","kind":"BROWSER","match":["google.chrome","chrome.exe","google-chrome","chromium"]},
+    {"id":"edge","displayName":"Microsoft Edge","kind":"BROWSER","match":["microsoftedge","msedge"]},
+    {"id":"firefox","displayName":"Mozilla Firefox","kind":"BROWSER","match":["mozilla.firefox","firefox"]},
+    {"id":"yandex-browser","displayName":"Яндекс Браузер","kind":"BROWSER","match":["yandex.browser","yandexbrowser","yandex-browser","browser.exe"]},
+    {"id":"opera-gx","displayName":"Opera GX","kind":"BROWSER","match":["opera gx","operagx"]},
+    {"id":"opera","displayName":"Opera","kind":"BROWSER","match":["opera"]},
+    {"id":"brave","displayName":"Brave","kind":"BROWSER","match":["brave"]},
+    {"id":"vivaldi","displayName":"Vivaldi","kind":"BROWSER","match":["vivaldi"]},
+    {"id":"safari","displayName":"Safari","kind":"BROWSER","match":["com.apple.safari","safari"]}
+  ],
+  "services": [
+    {"id":"spotify","displayName":"Spotify","hosts":["open.spotify.com"],"contentKind":"TRACK"},
+    {"id":"yandex-music","displayName":"Яндекс Музыка","hosts":["music.yandex.ru","music.yandex.com"],"contentKind":"TRACK"},
+    {"id":"apple-music","displayName":"Apple Music","hosts":["music.apple.com"],"contentKind":"TRACK"},
+    {"id":"soundcloud","displayName":"SoundCloud","hosts":["soundcloud.com","on.soundcloud.com"],"contentKind":"TRACK"},
+    {"id":"vk-music","displayName":"VK Музыка","hosts":["vk.com","vk.ru"],"pathPrefixes":["/audio","/music","/artist"],"contentKind":"TRACK"},
+    {"id":"youtube-music","displayName":"YouTube Music","hosts":["music.youtube.com"],"contentKind":"TRACK"},
+    {"id":"youtube","displayName":"YouTube","hosts":["youtube.com","www.youtube.com","youtu.be","music.youtube.com"],"contentKind":"VIDEO"},
+    {"id":"kinopoisk","displayName":"Кинопоиск","hosts":["kinopoisk.ru","hd.kinopoisk.ru"],"contentKind":"MOVIE"},
+    {"id":"netflix","displayName":"Netflix","hosts":["netflix.com","www.netflix.com"],"contentKind":"MOVIE"},
+    {"id":"twitch","displayName":"Twitch","hosts":["twitch.tv","www.twitch.tv"],"contentKind":"LIVE_STREAM"},
+    {"id":"vk-video","displayName":"VK Видео","hosts":["vk.com","vk.ru","vkvideo.ru"],"contentKind":"VIDEO"},
+    {"id":"rutube","displayName":"RUTUBE","hosts":["rutube.ru"],"contentKind":"VIDEO"}
+  ]
+}

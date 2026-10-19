@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "cmode.mixins",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+    "input.KeyboardMixin",
+    "network.ClientPlayNetworkHandlerMixin",
+    "render.GameRendererMixin",
+    "render.WorldRendererMatrixMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
