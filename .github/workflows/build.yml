@@ -45,6 +45,26 @@ jobs:
           rm -f dist/*-sources.jar
           ls -lh dist
 
+      - name: Verify jar
+        run: |
+          JAR=$(ls dist/*.jar | head -n1)
+          echo "JAR: $JAR"
+          for cls in brokke/cc/module/render/Atmosphere.class brokke/cc/mixins/render/BlockColorsMixin.class; do
+            if unzip -l "$JAR" | grep -q "$cls"; then
+              echo "::notice::OK: $cls present"
+            else
+              echo "::error::MISSING: $cls"
+            fi
+          done
+          if unzip -p "$JAR" ez.mixins.json | grep -q 'render.BlockColorsMixin'; then
+            echo "::notice::OK: ez.mixins.json references BlockColorsMixin"
+          else
+            echo "::error::ez.mixins.json has no BlockColorsMixin entry"
+          fi
+          REFS=$(unzip -p "$JAR" brokke/cc/mixins/render/BlockColorsMixin.class | strings | grep -c 'method_' || true)
+          NAMED=$(unzip -p "$JAR" brokke/cc/mixins/render/BlockColorsMixin.class | strings | grep -c 'getColor' || true)
+          echo "::notice::BlockColorsMixin: intermediary refs=$REFS, named getColor refs=$NAMED"
+
       - name: Upload artifact
         if: success()
         uses: actions/upload-artifact@v4
