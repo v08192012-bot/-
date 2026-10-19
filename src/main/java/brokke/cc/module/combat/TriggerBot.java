@@ -14,8 +14,12 @@ import brokke.cc.setting.BooleanSetting;
 import brokke.cc.setting.FloatSetting;
 import brokke.cc.setting.ModeSetting;
 import brokke.cc.system.events.EventHandler;
+import brokke.cc.system.events.EventPriority;
 import brokke.cc.system.events.impl.EventLook;
+import brokke.cc.system.events.impl.EventMoveInput;
+import brokke.cc.system.events.impl.SendPacketEvent;
 import brokke.cc.system.events.impl.UpdateEvent;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -24,6 +28,7 @@ import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
@@ -34,10 +39,17 @@ import net.minecraft.world.RaycastContext;
 import net.minecraft.world.RaycastContext.FluidHandling;
 import net.minecraft.world.RaycastContext.ShapeType;
 
-@NewFunction(name = "TriggerBot", description = "Бьёт цель под прицелом с умными критами", category = Category.COMBAT)
+@NewFunction(
+   name = "TriggerBot",
+   description = "Бьёт цель под прицелом с умными критами; режим «Легит» — реакция, промахи и сброс спринта как у человека",
+   category = Category.COMBAT
+)
 public class TriggerBot extends Function {
    private static final long MIN_ATTACK_INTERVAL = 50L;
-   private final ModeSetting attackMode = new ModeSetting("attack_mode", "Обычный", new String[]{"Обычный"});
+   private static final double LEGIT_REACH = 3.0;
+   private static final float LEGIT_YAW_SLACK = 8.0F;
+   private static final float LEGIT_PITCH_SLACK = 6.0F;
+   private final ModeSetting attackMode = new ModeSetting("attack_mode", "Легит", new String[]{"Обычный", "Легит"});
    private final ModeSetting targetMode = new ModeSetting("target_mode", "Невидимых", new String[]{"Невидимых", "Только игроки"});
    private final ModeSetting hitConditions = new ModeSetting("hit_conditions", "Умные криты", new String[]{"Умные криты", "Только криты", "Через траву"});
    private final BooleanSetting weaponOnly = new BooleanSetting("weapon_only", true);
@@ -47,9 +59,28 @@ public class TriggerBot extends Function {
    private final FloatSetting customCooldownPercent = new FloatSetting("custom_cooldown_percent", 100.0F, 0.0F, 100.0F, 1.0F)
       .showWhen(this.customCooldown::isToggled);
    private final BooleanSetting tpsSync = new BooleanSetting("tps_sync", false);
-   private final BooleanSetting comboLunge = new BooleanSetting("combo_lunge", false);
+   private final BooleanSetting comboLunge = new BooleanSetting("combo_lunge", false).showWhen(() -> !this.isLegit());
+   private final FloatSetting legitReaction = new FloatSetting("Реакция, мс", 180.0F, 60.0F, 450.0F, 5.0F)
+      .showWhen(this::isLegit);
+   private final FloatSetting legitHitChance = new FloatSetting("Шанс удара", 90.0F, 40.0F, 100.0F, 1.0F)
+      .showWhen(this::isLegit);
+   private final BooleanSetting legitSprintReset = new BooleanSetting("Легитный сброс спринта", true)
+      .showWhen(this::isLegit);
+   private final BooleanSetting legitMistakes = new BooleanSetting("Человеческие ошибки", true)
+      .showWhen(this::isLegit);
+   private final BooleanSetting legitVanillaReach = new BooleanSetting("Ванильная дистанция", true)
+      .showWhen(this::isLegit);
    private LivingEntity target;
    private long lastAttack;
+   private int legitTargetId = -1;
+   private long legitReactAt;
+   private long legitReadyAt;
+   private long legitPauseUntil;
+   private float legitThreshold = 0.98F;
+   private int legitLastAttackAge = Integer.MIN_VALUE;
+   private float lastSentYaw;
+   private float lastSentPitch;
+   private boolean hasSentRotation;
 
    public TriggerBot() {
       this.addSettings(
@@ -62,8 +93,17 @@ public class TriggerBot extends Function {
          this.customCooldown,
          this.customCooldownPercent,
          this.tpsSync,
-         this.comboLunge
+         this.comboLunge,
+         this.legitReaction,
+         this.legitHitChance,
+         this.legitSprintReset,
+         this.legitMistakes,
+         this.legitVanillaReach
       );
+   }
+
+   public boolean isLegit() {
+      return this.attackMode.isMode("Легит");
    }
 
    public LivingEntity k() {
@@ -77,6 +117,11 @@ public class TriggerBot extends Function {
          return null;
       } else {
          double var1 = this.reach.getValue();
+         if (this.isLegit() && this.legitVanillaReach.isToggled()) {
+            // за ванильные 3 блока человек дотянуться не может
+            var1 = Math.min(var1, LEGIT_REACH);
+         }
+
          Vec3d var3 = mc.player.getEyePos();
          Vec3d var4 = mc.player.getRotationVec(1.0F);
          Vec3d var5 = var3.add(var4.multiply(var1));
@@ -94,6 +139,7 @@ public class TriggerBot extends Function {
    public void onEnable() {
       super.onEnable();
       this.o();
+      this.legitThreshold = this.legitRandomThreshold();
    }
 
    @Override
@@ -108,51 +154,220 @@ public class TriggerBot extends Function {
          this.o();
       } else {
          IdealHitUtils.b();
-         this.p();
+         // сброс спринта живёт тиками: без этого вызова клавиша осталась бы отжатой
+         SprintReset.b();
+         this.p(true);
       }
    }
 
    @EventHandler
    public void onLook(EventLook var1) {
-      this.p();
+      this.p(false);
    }
 
-   private void p() {
+   @EventHandler
+   public void onMoveInput(EventMoveInput var1) {
+      if (this.legitSprintResetActive()) {
+         SprintReset.a(var1);
+      }
+   }
+
+   /**
+    * Запоминаем поворот, который уже отправлен серверу. Легит-режим бьёт только
+    * тогда, когда текущий взгляд совпадает с отправленным — как у человека,
+    * который сначала доводит прицел и лишь потом кликает.
+    */
+   @EventHandler(priority = EventPriority.LOWEST)
+   public void onPacket(SendPacketEvent var1) {
+      if (!var1.isCancelled() && mc.player != null && var1.getPacket() instanceof PlayerMoveC2SPacket var2 && var2.changesLook()) {
+         this.lastSentYaw = var2.getYaw(mc.player.getYaw());
+         this.lastSentPitch = var2.getPitch(mc.player.getPitch());
+         this.hasSentRotation = true;
+      }
+   }
+
+   private boolean legitSprintResetActive() {
+      return this.isLegit() && this.legitSprintReset.isToggled();
+   }
+
+   private void p(boolean var1) {
       if (mc.player == null || mc.world == null || mc.interactionManager == null) {
          this.o();
-      } else if (mc.currentScreen == null && !mc.interactionManager.isBreakingBlock()) {
-         Aura var1 = Aura.INSTANCE;
-         boolean auraSkyTime = var1 != null && var1.l() && var1.rotationType.isSelected("SkyTime");
-         if (var1 == null || !var1.l() || auraSkyTime) {
-            if (this.weaponOnly.isToggled() && !AuraChecks.a(mc)) {
-               this.target = null;
-            } else {
-               LivingEntity var2 = this.l();
-               if (var2 != null) {
-                  long var3 = System.currentTimeMillis();
-                  if (var3 - this.lastAttack >= MIN_ATTACK_INTERVAL) {
-                     float var5 = this.customCooldown.isToggled() ? (float)(this.customCooldownPercent.getValue() / 100.0) : IdealHitUtils.a();
-                     if (this.b(var5)
-                        && this.c(var2)
-                        && this.a(mc.player.getMainHandStack().getItem() == Items.MACE, var2)
-                        && (!auraSkyTime || var1.skyTimeTriggerAllow())) {
-                        boolean var6 = mc.player.isSprinting();
-                        this.target = var2;
-                        this.lastAttack = var3;
-                        mc.interactionManager.attackEntity(mc.player, var2);
-                        mc.player.swingHand(Hand.MAIN_HAND);
-                        if (this.comboLunge.isToggled()) {
-                           SprintReset.a("W-Tap", var6);
-                        }
-                        if (auraSkyTime) {
-                           var1.skyTimeTriggerAttacked();
-                        }
-                     }
-                  }
-               }
-            }
-         }
+         return;
       }
+
+      if (mc.currentScreen != null || mc.interactionManager.isBreakingBlock()) {
+         return;
+      }
+
+      Aura var2 = Aura.INSTANCE;
+      boolean auraSkyTime = var2 != null && var2.l() && var2.rotationType.isSelected("SkyTime");
+      if (var2 != null && var2.l() && !auraSkyTime) {
+         return;
+      }
+
+      if (this.weaponOnly.isToggled() && !AuraChecks.a(mc)) {
+         this.target = null;
+         return;
+      }
+
+      boolean legit = this.isLegit() && !auraSkyTime;
+      if (legit && !var1) {
+         // легит-режим бьёт только из тика: максимум один удар за тик, ровно как у человека
+         return;
+      }
+
+      LivingEntity var3 = this.l();
+      if (legit) {
+         var3 = this.legitSelection(var3, var1);
+      }
+
+      if (var3 == null) {
+         return;
+      }
+
+      long var4 = System.currentTimeMillis();
+      if (var4 - this.lastAttack < MIN_ATTACK_INTERVAL) {
+         return;
+      }
+
+      float var6 = this.customCooldown.isToggled()
+         ? (float)(this.customCooldownPercent.getValue() / 100.0)
+         : (legit ? this.legitThreshold : IdealHitUtils.a());
+      boolean var7 = this.b(var6)
+         && this.c(var3)
+         && this.a(mc.player.getMainHandStack().getItem() == Items.MACE, var3)
+         && (!auraSkyTime || var2.skyTimeTriggerAllow());
+      if (var7 && legit && !this.legitReady(var4)) {
+         var7 = false;
+      }
+
+      if (!var7) {
+         return;
+      }
+
+      boolean var8 = mc.player.isSprinting();
+      this.target = var3;
+      this.lastAttack = var4;
+      this.legitLastAttackAge = mc.player.age;
+      mc.interactionManager.attackEntity(mc.player, var3);
+      mc.player.swingHand(Hand.MAIN_HAND);
+      if (legit) {
+         if (this.legitSprintReset.isToggled()) {
+            // мягкий W-тап: на один тик отпускаем спринт, вперёд продолжаем идти
+            SprintReset.a("Legit", var8);
+         }
+
+         this.legitThreshold = this.legitRandomThreshold();
+         this.legitReadyAt = var4;
+      } else if (this.comboLunge.isToggled()) {
+         SprintReset.a("W-Tap", var8);
+      }
+
+      if (auraSkyTime) {
+         var2.skyTimeTriggerAttacked();
+      }
+   }
+
+   /**
+    * Человеческая выборка цели: новая цель под прицелом требует времени на реакцию,
+    * изредка случаются короткие паузы, а удар может не пройти по «человеческой» причине.
+    */
+   private LivingEntity legitSelection(LivingEntity var1, boolean var2) {
+      long var3 = System.currentTimeMillis();
+      if (var1 == null) {
+         this.legitTargetId = -1;
+         this.legitReactAt = 0L;
+         return null;
+      }
+
+      int var5 = var1.getId();
+      if (var5 != this.legitTargetId) {
+         this.legitTargetId = var5;
+         this.legitReactAt = var3 + this.legitReactionDelay();
+         this.legitReadyAt = var3;
+         this.legitThreshold = this.legitRandomThreshold();
+         return null;
+      }
+
+      if (var3 < this.legitReactAt || var3 < this.legitReadyAt || var3 < this.legitPauseUntil) {
+         return null;
+      }
+
+      if (var2 && this.legitMistakes.isToggled() && ThreadLocalRandom.current().nextInt(500) == 0) {
+         // «моргнул»: короткая пауза, будто взгляд ушёл или рука дрогнула
+         this.legitPauseUntil = var3 + 140L + ThreadLocalRandom.current().nextLong(260L);
+         return null;
+      }
+
+      return var1;
+   }
+
+   private boolean legitReady(long var1) {
+      if (mc.player == null) {
+         return false;
+      }
+
+      if (!this.rotationSettled()) {
+         // сервер ещё не знает текущий поворот — удар выглядел бы «из ниоткуда»
+         return false;
+      }
+
+      if (mc.player.isUsingItem() && !mc.player.getActiveItem().isOf(Items.SHIELD)) {
+         // едим, пьём или тянем лук — человек сначала доест, а со щитом бить можно
+         return false;
+      }
+
+      if (this.legitLastAttackAge == mc.player.age) {
+         return false;
+      }
+
+      float var3 = this.legitHitChance.getFloatValue();
+      if (var3 < 100.0F && ThreadLocalRandom.current().nextFloat() * 100.0F >= var3) {
+         // промах по таймингу: кликнул чуть раньше/позже окна и переждал
+         this.legitReadyAt = var1 + 80L + ThreadLocalRandom.current().nextLong(140L);
+         this.legitThreshold = this.legitRandomThreshold();
+         return false;
+      }
+
+      return true;
+   }
+
+   private boolean rotationSettled() {
+      if (mc.player == null) {
+         return false;
+      }
+
+      if (!this.hasSentRotation) {
+         // первый удар после включения: считаем, что сервер видит текущий поворот
+         this.lastSentYaw = mc.player.getYaw();
+         this.lastSentPitch = mc.player.getPitch();
+         this.hasSentRotation = true;
+         return true;
+      }
+
+      float var1 = mc.player.getYaw() - this.lastSentYaw;
+      var1 %= 360.0F;
+      if (var1 >= 180.0F) {
+         var1 -= 360.0F;
+      } else if (var1 < -180.0F) {
+         var1 += 360.0F;
+      }
+
+      float var2 = mc.player.getPitch() - this.lastSentPitch;
+      return Math.abs(var1) <= LEGIT_YAW_SLACK && Math.abs(var2) <= LEGIT_PITCH_SLACK;
+   }
+
+   private long legitReactionDelay() {
+      float var1 = ThreadLocalRandom.current().nextFloat();
+      double var2 = this.legitReaction.getValue();
+      // чаще реагируем около базового значения, изредка — заметно медленнее
+      return (long)(var2 * (0.65F + var1 * var1 * 0.9F)) + ThreadLocalRandom.current().nextLong(25L);
+   }
+
+   private float legitRandomThreshold() {
+      // человек не выжимает кулдаун идеально: 93–100%
+      return 0.93F + ThreadLocalRandom.current().nextFloat() * 0.07F;
    }
 
    private boolean c(LivingEntity var1) {
@@ -205,5 +420,11 @@ public class TriggerBot extends Function {
    private void o() {
       this.target = null;
       this.lastAttack = 0L;
+      this.legitTargetId = -1;
+      this.legitReactAt = 0L;
+      this.legitReadyAt = 0L;
+      this.legitPauseUntil = 0L;
+      this.legitLastAttackAge = Integer.MIN_VALUE;
+      this.hasSentRotation = false;
    }
 }
