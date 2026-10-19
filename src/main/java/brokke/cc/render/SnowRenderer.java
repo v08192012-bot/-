@@ -28,6 +28,8 @@ import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.texture.AbstractTexture;
+import net.minecraft.client.texture.Sprite;
+import net.minecraft.client.texture.SpriteAtlasTexture;
 import net.minecraft.client.util.Window;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -37,7 +39,8 @@ import org.joml.Matrix4f;
 import org.lwjgl.system.MemoryUtil;
 
 public final class SnowRenderer {
-   private static final Identifier SNOW_TEXTURE = Identifier.of("brokke", "textures/snow/patch.png");
+   private static final Identifier VANILLA_SNOW = Identifier.of("minecraft", "block/snow");
+   private static final Identifier BLOCKS_ATLAS = Identifier.of("minecraft", "textures/atlas/blocks.png");
    private static final VertexFormat FORMAT = VertexFormat.builder()
       .add("Position", VertexFormatElement.POSITION)
       .add("UV", VertexFormatElement.UV0)
@@ -74,10 +77,28 @@ public final class SnowRenderer {
          return;
       }
 
-      AbstractTexture texture = client.getTextureManager().getTexture(SNOW_TEXTURE);
-      if (texture == null) {
+      SpriteAtlasTexture atlas;
+      Sprite sprite;
+      try {
+         AbstractTexture texture = client.getTextureManager().getTexture(BLOCKS_ATLAS);
+         if (!(texture instanceof SpriteAtlasTexture blockAtlas)) {
+            return;
+         }
+
+         atlas = blockAtlas;
+         sprite = atlas.getSprite(VANILLA_SNOW);
+      } catch (Exception exception) {
          return;
       }
+
+      if (sprite == null) {
+         return;
+      }
+
+      float spriteMinU = sprite.getMinU();
+      float spriteMaxU = sprite.getMaxU();
+      float spriteMinV = sprite.getMinV();
+      float spriteMaxV = sprite.getMaxV();
 
       float tickDelta = client.getRenderTickCounter().getTickProgress(true);
       Matrix4f projection = createProjection(camera, tickDelta);
@@ -106,20 +127,22 @@ public final class SnowRenderer {
          int hash = mix(x, z);
          float inset = 0.012F + (hash & 7) * 0.007F;
          float lift = 0.012F + ((hash >>> 3) & 3) * 0.003F;
-         float alpha = 0.58F + ((hash >>> 5) & 15) / 15.0F * 0.32F;
+         float alpha = 0.9F + ((hash >>> 5) & 15) / 15.0F * 0.1F;
+         float brightness = 0.92F + ((hash >>> 13) & 7) / 7.0F * 0.08F;
          if (sparkle && (hash >>> 9 & 31) == 0) {
-            alpha = Math.min(1.0F, alpha + 0.12F + 0.1F * (float)Math.sin(sparklePhase + (hash & 255)));
+            alpha = 1.0F;
+            // редкие кристаллики вспыхивают на солнце
+            brightness = Math.min(1.0F, brightness + 0.05F + 0.05F * (float)Math.sin(sparklePhase * 1.7F + (hash & 127)));
          }
+         float red = brightness;
+         float green = brightness;
+         float blue = Math.min(1.0F, brightness * 1.02F);
 
-         float brightness = 0.93F + ((hash >>> 13) & 7) / 7.0F * 0.07F;
-         float red = brightness * 0.96F;
-         float green = brightness * 0.98F;
-         float blue = brightness;
-
-         float u0 = ((hash >>> 16) & 1) * 0.5F;
-         float v0 = ((hash >>> 17) & 1) * 0.5F;
-         float u1 = u0 + 0.5F;
-         float v1 = v0 + 0.5F;
+         // UV берём у ванильного спрайта block/snow из атласа блоков
+         float u0 = spriteMinU;
+         float u1 = spriteMaxU;
+         float v0 = spriteMinV;
+         float v1 = spriteMaxV;
          if ((hash & 1) != 0) {
             float swap = u0;
             u0 = u1;
@@ -158,7 +181,7 @@ public final class SnowRenderer {
       }
 
       if (builder != null && quadCount > 0) {
-         draw(builder, texture.getGlTextureView());
+         draw(builder, atlas.getGlTextureView());
       }
    }
 

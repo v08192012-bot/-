@@ -71,7 +71,7 @@ public class Atmosphere extends Function {
    public final NumberSetting snowDensity = new NumberSetting("Плотность снега", 30.0, 2.0, 120.0, 1.0);
    public final NumberSetting snowWind = new NumberSetting("Порывы ветра", 0.25, 0.0, 1.0, 0.05);
    public final BooleanSetting sparkle = new BooleanSetting("Блики на снегу", true);
-   public final NumberSetting snowRelief = new NumberSetting("Рельеф сугробов", 0.6, 0.0, 1.0, 0.05);
+   public final NumberSetting snowRelief = new NumberSetting("Рельеф сугробов", 0.35, 0.0, 1.0, 0.05);
    public final BooleanSetting snowDrift = new BooleanSetting("Позёмка", true);
    public final BooleanSetting frostHaze = new BooleanSetting("Морозная дымка", true);
    public final NumberSetting frostStrength = new NumberSetting("Сила дымки", 0.55, 0.0, 1.0, 0.05);
