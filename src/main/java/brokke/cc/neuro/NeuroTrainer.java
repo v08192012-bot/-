@@ -17,7 +17,7 @@ import net.minecraft.client.MinecraftClient;
 /**
  * Обучение нейромодели прямо в клиенте (без Python и torch).
  *
- * Архитектура ровно как в Tools/neuro/train_spacetime.py и в SpaceTimeModel:
+ * Архитектура ровно как в tools/neuro/train_spacetime.py и в SpaceTimeModel:
  *   GRU(17 -> 32) + MDN-голова (1 freeze + 3 компоненты по 6), лосс — NLL
  *   2D-гауссовой смеси с корреляцией rho (+ BCE по freeze-выходу).
  *
@@ -29,7 +29,8 @@ import net.minecraft.client.MinecraftClient;
  *   нормированная ошибка, дистанция, on-target, тики с последнего удара, freeze.
  * Выход: dyaw/dpitch в asinh-пространстве (метки — реальные дельты мыши за тик).
  *
- * Данные: CSV от .neuro record (бей фейкового игрока в плоском мире).
+ * Данные: CSV от .neuro record (бей фейкового игрока в плоском мире; новая запись
+ * содержит 18-ю фичу x17 = цель в воздухе, старые 17-фичевые файлы тоже читаются).
  * Результат: run/brokke/neuro/spacetime.bin — режим «Нейро» подхватывает его
  * без перезапуска (NeuroModels.reload()).
  */

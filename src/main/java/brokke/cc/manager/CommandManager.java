@@ -1161,7 +1161,7 @@ public class CommandManager {
                break;
             }
             case "train": {
-               int var11 = 40;
+               int var11 = 120;
                if (var0.length > 2) {
                   try {
                      var11 = Integer.parseInt(var0[2]);
