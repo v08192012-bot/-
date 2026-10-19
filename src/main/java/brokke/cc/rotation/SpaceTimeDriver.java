@@ -143,13 +143,13 @@ public final class SpaceTimeDriver {
       ThreadLocalRandom rnd = ThreadLocalRandom.current();
       boolean frozen = !forceMove && rnd.nextFloat() < freezeProb;
 
-      // цель ушла из-под прицела — «замирать» нельзя, иначе аура смотрит в пустоту,
-      // пока цель спокойно отходит (модель училась на живых людях, а те так не делают)
-      if (Math.abs(totalErrYaw) > FREEZE_MAX_ERROR || Math.abs(totalErrPitch) > FREEZE_MAX_ERROR) {
-         frozen = false;
-      }
-
       if (smooth > 0.01F) {
+         // цель ушла из-под прицела — «замирать» нельзя, иначе аура смотрит в пустоту,
+         // пока цель спокойно отходит (модель училась на живых людях, а те так не делают)
+         if (Math.abs(totalErrYaw) > FREEZE_MAX_ERROR || Math.abs(totalErrPitch) > FREEZE_MAX_ERROR) {
+            frozen = false;
+         }
+
          // ---- сглаженный режим: ожидание смеси + инерция скорости (человечная дуга вместо сэмпла) ----
          float intendedYaw = 0.0F;
          float intendedPitch = 0.0F;
