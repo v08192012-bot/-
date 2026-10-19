@@ -3,12 +3,14 @@ package brokke.cc.module.render;
 import brokke.cc.module.Category;
 import brokke.cc.module.Function;
 import brokke.cc.module.NewFunction;
+import brokke.cc.render.RenderUtil;
 import brokke.cc.render.SnowRenderer;
 import brokke.cc.setting.BooleanSetting;
 import brokke.cc.setting.ColorSetting;
 import brokke.cc.setting.ModeSetting;
 import brokke.cc.setting.NumberSetting;
 import brokke.cc.system.events.EventHandler;
+import brokke.cc.system.events.impl.Render2DEvent;
 import brokke.cc.system.events.impl.Render3DEvent;
 import brokke.cc.system.events.impl.UpdateEvent;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
@@ -23,6 +25,7 @@ import net.minecraft.particle.TintedParticleEffect;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 
 @NewFunction(
@@ -45,6 +48,7 @@ public class Atmosphere extends Function {
    private static final int[] FROST_GRASS = new int[]{0xE6F1F7, 0xD3E4EE, 0xC4DAE8, 0xF0F8FC, 0xCDDFEA};
    private static final int DEFAULT_LEAF_COLOR = 0x86A35A;
    private static final int NO_SNOW = Integer.MIN_VALUE;
+   private static final Identifier FROST_TEXTURE = Identifier.of("brokke", "textures/snow/frost.png");
    private static final int COLUMNS_PER_TICK = 96;
    private static Atmosphere instance;
 
@@ -67,6 +71,10 @@ public class Atmosphere extends Function {
    public final NumberSetting snowDensity = new NumberSetting("Плотность снега", 30.0, 2.0, 120.0, 1.0);
    public final NumberSetting snowWind = new NumberSetting("Порывы ветра", 0.25, 0.0, 1.0, 0.05);
    public final BooleanSetting sparkle = new BooleanSetting("Блики на снегу", true);
+   public final NumberSetting snowRelief = new NumberSetting("Рельеф сугробов", 0.6, 0.0, 1.0, 0.05);
+   public final BooleanSetting snowDrift = new BooleanSetting("Позёмка", true);
+   public final BooleanSetting frostHaze = new BooleanSetting("Морозная дымка", true);
+   public final NumberSetting frostStrength = new NumberSetting("Сила дымки", 0.55, 0.0, 1.0, 0.05);
    private final BlockPos.Mutable scanPos = new BlockPos.Mutable();
    private final Long2IntOpenHashMap snowColumns = new Long2IntOpenHashMap();
    private final List<Long> columnOffsets = new ArrayList<>();
@@ -99,7 +107,11 @@ public class Atmosphere extends Function {
          this.snowfall,
          this.snowDensity,
          this.snowWind,
-         this.sparkle
+         this.sparkle,
+         this.snowRelief,
+         this.snowDrift,
+         this.frostHaze,
+         this.frostStrength
       );
       this.season.onChanged(() -> {
          this.updatePalettes();
@@ -132,6 +144,8 @@ public class Atmosphere extends Function {
       this.fallingLeaves.onChanged(this::updateVisibility);
       this.snowCover.onChanged(this::updateVisibility);
       this.snowfall.onChanged(this::updateVisibility);
+      this.snowDrift.onChanged(this::updateVisibility);
+      this.frostHaze.onChanged(this::updateVisibility);
       this.snowRadius.onChanged(() -> this.scannedRadius = -1);
    }
 
@@ -190,6 +204,10 @@ public class Atmosphere extends Function {
       this.snowDensity.setVisible(winter && this.snowfall.isToggled());
       this.snowWind.setVisible(winter && this.snowfall.isToggled());
       this.sparkle.setVisible(winter && this.snowCover.isToggled());
+      this.snowRelief.setVisible(winter && this.snowCover.isToggled());
+      this.snowDrift.setVisible(winter && this.snowfall.isToggled());
+      this.frostHaze.setVisible(winter);
+      this.frostStrength.setVisible(winter && this.frostHaze.isToggled());
    }
 
    private void markColorsDirty() {
@@ -270,7 +288,25 @@ public class Atmosphere extends Function {
          return;
       }
 
-      SnowRenderer.render(this.snowColumns, this.sparkle.isToggled(), System.currentTimeMillis());
+      SnowRenderer.render(this.snowColumns, this.sparkle.isToggled(), (float)this.snowRelief.getValue(), System.currentTimeMillis());
+   }
+
+   @EventHandler
+   public void onRender2D(Render2DEvent event) {
+      if (!this.isWinter() || !this.frostHaze.isToggled()) {
+         return;
+      }
+
+      double strength = this.frostStrength.getValue();
+      if (strength <= 0.01) {
+         return;
+      }
+
+      int width = RenderUtil.a();
+      int height = RenderUtil.b();
+      int alpha = (int)Math.round(38 + strength * 132);
+      int color = alpha << 24 | 0xEAF6FF;
+      RenderUtil.a(RenderUtil.c(), 0.0F, 0.0F, width, height, FROST_TEXTURE, 0.0F, color);
    }
 
    private void tickSnowCover() {
@@ -457,6 +493,35 @@ public class Atmosphere extends Function {
       if (this.snowCarry > 8.0F) {
          this.snowCarry = 8.0F;
       }
+
+      if (this.snowDrift.isToggled()) {
+         int driftCount = 1 + (int)Math.round(this.snowWind.getValue() * 4.0);
+
+         for (int i = 0; i < driftCount; i++) {
+            this.spawnDriftSnowflake();
+         }
+      }
+   }
+
+   private void spawnDriftSnowflake() {
+      ThreadLocalRandom random = ThreadLocalRandom.current();
+      double angle = random.nextDouble() * (Math.PI * 2);
+      double distance = Math.sqrt(random.nextDouble()) * this.snowRadius.getValue();
+      double x = mc.player.getX() + Math.cos(angle) * distance;
+      double z = mc.player.getZ() + Math.sin(angle) * distance;
+      double y = mc.player.getY() - 1.5 + random.nextDouble() * 3.5;
+
+      if (!mc.world.getBlockState(BlockPos.ofFloored(x, y, z)).isAir()) {
+         return;
+      }
+
+      double windAngle = System.currentTimeMillis() / 26000.0 + random.nextDouble() * 0.6;
+      double gust = 0.6 + 0.4 * Math.sin(System.currentTimeMillis() / 1700.0 + angle);
+      double speed = (0.02 + this.snowWind.getValue() * 0.05) * gust;
+      double velocityX = Math.cos(windAngle) * speed;
+      double velocityZ = Math.sin(windAngle) * speed;
+      double velocityY = 0.004 + random.nextDouble() * 0.012;
+      mc.particleManager.addParticle(ParticleTypes.SNOWFLAKE, x, y, z, velocityX, velocityY, velocityZ);
    }
 
    private void spawnSnowflake() {
@@ -472,9 +537,11 @@ public class Atmosphere extends Function {
       }
 
       double windStrength = this.snowWind.getValue();
-      double velocityX = (random.nextDouble() - 0.5) * 0.02 + windStrength * 0.02;
+      double gust = 0.6 + 0.4 * Math.sin(System.currentTimeMillis() / 1900.0 + angle);
+      double windAngle = System.currentTimeMillis() / 26000.0;
+      double velocityX = (random.nextDouble() - 0.5) * 0.02 + Math.cos(windAngle) * windStrength * 0.028 * gust;
       double velocityY = -0.008 - random.nextDouble() * 0.014;
-      double velocityZ = (random.nextDouble() - 0.5) * 0.02 + windStrength * 0.01;
+      double velocityZ = (random.nextDouble() - 0.5) * 0.02 + Math.sin(windAngle) * windStrength * 0.028 * gust;
       mc.particleManager.addParticle(ParticleTypes.SNOWFLAKE, x, y, z, velocityX, velocityY, velocityZ);
    }
 

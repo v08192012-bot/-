@@ -31,6 +31,7 @@ import net.minecraft.client.texture.AbstractTexture;
 import net.minecraft.client.util.Window;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.lwjgl.system.MemoryUtil;
@@ -53,7 +54,7 @@ public final class SnowRenderer {
    private SnowRenderer() {
    }
 
-   public static void render(Long2IntMap columns, boolean sparkle, long timeMillis) {
+   public static void render(Long2IntMap columns, boolean sparkle, float relief, long timeMillis) {
       MinecraftClient client = MinecraftClient.getInstance();
       if (client.world == null || client.player == null || columns.isEmpty()) {
          return;
@@ -103,8 +104,8 @@ public final class SnowRenderer {
          }
 
          int hash = mix(x, z);
-         float inset = 0.015F + (hash & 7) * 0.009F;
-         float lift = 0.02F + ((hash >>> 3) & 3) * 0.004F;
+         float inset = 0.012F + (hash & 7) * 0.007F;
+         float lift = 0.012F + ((hash >>> 3) & 3) * 0.003F;
          float alpha = 0.58F + ((hash >>> 5) & 15) / 15.0F * 0.32F;
          if (sparkle && (hash >>> 9 & 31) == 0) {
             alpha = Math.min(1.0F, alpha + 0.12F + 0.1F * (float)Math.sin(sparklePhase + (hash & 255)));
@@ -140,11 +141,19 @@ public final class SnowRenderer {
          float z0 = -half + inset;
          float z1 = half - inset;
 
+         // высота каждого угла берётся из общей карты высот, поэтому соседние
+         // блоки стыкуются без щелей — получаются мягкие сугробы
+         float h00 = snowHeight(x, z, relief);
+         float h10 = snowHeight(x + 1, z, relief);
+         float h01 = snowHeight(x, z + 1, relief);
+         float h11 = snowHeight(x + 1, z + 1, relief);
+         float shadeSE = 0.94F + h11 * 1.2F;
+
          TEMP_MAT.translation((float)(x + 0.5 - cameraPos.x), (float)(y + lift - cameraPos.y), (float)(z + 0.5 - cameraPos.z));
-         builder.vertex(TEMP_MAT, x0, 0.0F, z0).texture(u0, v0).color(red, green, blue, alpha);
-         builder.vertex(TEMP_MAT, x0, 0.0F, z1).texture(u0, v1).color(red, green, blue, alpha);
-         builder.vertex(TEMP_MAT, x1, 0.0F, z1).texture(u1, v1).color(red, green, blue, alpha);
-         builder.vertex(TEMP_MAT, x1, 0.0F, z0).texture(u1, v0).color(red, green, blue, alpha);
+         builder.vertex(TEMP_MAT, x0, h00, z0).texture(u0, v0).color(red * 0.97F, green * 0.98F, blue, alpha);
+         builder.vertex(TEMP_MAT, x0, h01, z1).texture(u0, v1).color(red * 0.96F, green * 0.97F, blue, alpha);
+         builder.vertex(TEMP_MAT, x1, h11, z1).texture(u1, v1).color(red * shadeSE, green * shadeSE, blue, alpha);
+         builder.vertex(TEMP_MAT, x1, h10, z0).texture(u1, v0).color(red * 0.98F, green * 0.99F, blue, alpha);
          quadCount++;
       }
 
@@ -276,6 +285,31 @@ public final class SnowRenderer {
       float fov = ((IGameRenderer)client.gameRenderer).invokeGetFov(camera, tickDelta, true);
       Matrix4f projection = new Matrix4f().perspective((float)Math.toRadians(fov), aspect, 0.05F, 1024.0F);
       return projection.mul(view);
+   }
+
+   private static float snowHeight(int cornerX, int cornerZ, float relief) {
+      float cellScale = 0.5F;
+      float fx = cornerX * cellScale;
+      float fz = cornerZ * cellScale;
+      int x0 = MathHelper.floor(fx);
+      int z0 = MathHelper.floor(fz);
+      float tx = smooth(fx - x0);
+      float tz = smooth(fz - z0);
+      float h00 = hash01(x0, z0);
+      float h10 = hash01(x0 + 1, z0);
+      float h01 = hash01(x0, z0 + 1);
+      float h11 = hash01(x0 + 1, z0 + 1);
+      float noise = (h00 * (1.0F - tx) + h10 * tx) * (1.0F - tz) + (h01 * (1.0F - tx) + h11 * tx) * tz;
+      float amplitude = 0.018F + relief * 0.085F;
+      return 0.01F + noise * amplitude;
+   }
+
+   private static float hash01(int x, int z) {
+      return (mix(x, z) >>> 8 & 0xFFFF) / 65535.0F;
+   }
+
+   private static float smooth(float t) {
+      return t * t * (3.0F - 2.0F * t);
    }
 
    private static int mix(int x, int z) {
