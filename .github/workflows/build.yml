@@ -49,7 +49,7 @@ jobs:
         run: |
           JAR=$(ls dist/*.jar | head -n1)
           echo "JAR: $JAR"
-          for cls in brokke/cc/module/render/Atmosphere.class brokke/cc/mixins/render/BlockColorsMixin.class; do
+          for cls in brokke/cc/module/render/Atmosphere.class brokke/cc/render/SnowRenderer.class brokke/cc/mixins/render/BlockColorsMixin.class assets/brokke/textures/snow/patch.png; do
             if unzip -l "$JAR" | grep -q "$cls"; then
               echo "::notice::OK: $cls present"
             else
