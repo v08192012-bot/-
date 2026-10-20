@@ -476,11 +476,40 @@ public class Aura extends Function {
       }
    }
 
+   /** Диагностика для античитов: реальные дельты поворота между отправленными пакетами. */
+   public static float dbgMaxYawStep;
+   public static float dbgMaxPitchStep;
+   public static int dbgBigSteps;
+
+   public static void dbgReset() {
+      dbgMaxYawStep = 0.0F;
+      dbgMaxPitchStep = 0.0F;
+      dbgBigSteps = 0;
+   }
+
    @EventHandler(priority = EventPriority.LOWEST)
    public void onPacket(SendPacketEvent var1) {
       if (!var1.isCancelled() && var1.getPacket() instanceof PlayerMoveC2SPacket var2 && var2.changesLook() && mc.player != null) {
-         this.lastServerYaw = var2.getYaw(mc.player.getYaw());
-         this.lastServerPitch = var2.getPitch(mc.player.getPitch());
+         float newYaw = var2.getYaw(mc.player.getYaw());
+         float newPitch = var2.getPitch(mc.player.getPitch());
+         if (this.hasServerRotation) {
+            float dYaw = Math.abs(MathHelper.wrapDegrees(newYaw - this.lastServerYaw));
+            float dPitch = Math.abs(newPitch - this.lastServerPitch);
+            if (dYaw > dbgMaxYawStep) {
+               dbgMaxYawStep = dYaw;
+            }
+
+            if (dPitch > dbgMaxPitchStep) {
+               dbgMaxPitchStep = dPitch;
+            }
+
+            if (dYaw > 20.0F || dPitch > 15.0F) {
+               dbgBigSteps++;
+            }
+         }
+
+         this.lastServerYaw = newYaw;
+         this.lastServerPitch = newPitch;
          this.hasServerRotation = true;
       }
    }

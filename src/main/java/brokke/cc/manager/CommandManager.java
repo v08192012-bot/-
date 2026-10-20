@@ -3,6 +3,7 @@ package brokke.cc.manager;
 import brokke.cc.config.ConfigManager;
 import brokke.cc.core.FakePlayerTickHandler;
 import brokke.cc.core.NeuroRecorder;
+import brokke.cc.module.combat.Aura;
 import brokke.cc.neuro.NeuroModels;
 import brokke.cc.neuro.NeuroTrainer;
 import brokke.cc.core.RCTCommand;
@@ -1136,6 +1137,17 @@ public class CommandManager {
                d(NeuroRecorder.INSTANCE.status());
                d("§7Модель: " + NeuroModels.describe());
                d(NeuroTrainer.status());
+               d(String.format(
+                  Locale.ROOT,
+                  "§7Повороты (пакеты): макс §f%.1f° §7yaw, §f%.1f° §7pitch, крупных шагов: §f%d §7— §f.neuro reset",
+                  Aura.dbgMaxYawStep,
+                  Aura.dbgMaxPitchStep,
+                  Aura.dbgBigSteps
+               ));
+               break;
+            case "reset":
+               Aura.dbgReset();
+               d("§7Счётчики поворотов сброшены");
                break;
             case "stop":
                d(NeuroRecorder.INSTANCE.stop("вручную"));
@@ -1276,7 +1288,7 @@ public class CommandManager {
       COMMANDS.put("mine", new CommandManager.b("вскапывание блока по координатам или имени", List.of("<x> <y> <z>", "<блок>", "stop")));
       COMMANDS.put("nav", new CommandManager.b("управление навигацией и рекордером", List.of("status", "record", "stop", "list", "goto", "mine")));
        COMMANDS.put("baritone", new CommandManager.b("управление навигацией Baritone", List.of("status", "record", "stop", "list", "goto", "mine")));
-       COMMANDS.put("neuro", new CommandManager.b("нейросеть: бот, запись датасета, обучение GRU, модель", List.of("bot", "record", "stop", "train", "model", "status")));
+       COMMANDS.put("neuro", new CommandManager.b("нейросеть: бот, запись датасета, обучение GRU, модель", List.of("bot", "record", "stop", "train", "model", "status", "reset")));
       COMMANDS.put("irc", new CommandManager.b("открыть меню IRC и друзей", List.of()));
    }
 
