@@ -96,6 +96,9 @@ public class Aura extends Function {
    private final ModeSetting priority = new ModeSetting("Приоритет", "Дистанция", new String[]{"Дистанция", "Здоровье", "Угол", "Никакой"});
    private final FloatSetting range = new FloatSetting("Дистанция атаки", 3.0F, 0.0F, 6.0F, 0.05F);
    public final BooleanSetting smartCrit = new BooleanSetting("Умные криты", false);
+   /** Сколько тиков аура может ждать крит, прежде чем ударить обычным ударом. 0 — не ждать. */
+   private final FloatSetting critWait = new FloatSetting("Ждать крит, тиков", 3.0F, 0.0F, 10.0F, 1.0F)
+      .showWhen(() -> this.smartCrit.isEnabled());
    public final BooleanSetting onlyCrits = new BooleanSetting("Только критами", false);
    public final ModeSetting sprintReset = new ModeSetting("Сброс спринта", "Legit", new String[]{"Нет", "Legit", "W-Tap", "S-Tap"});
    private final BooleanSetting throughWalls = new BooleanSetting("Через блоки", false);
@@ -150,13 +153,16 @@ public class Aura extends Function {
    private int critReleaseAge = Integer.MIN_VALUE;
    /** Тик последнего удара: не больше одного attack-пакета за тик. */
    private int attackAge = Integer.MIN_VALUE;
+   /** Сколько тиков удар уже готов, но ждёт крит (см. critWait). */
+   private int critWaitTicks;
    private LivingEntity holyWorldServerTarget;
    private boolean auraAttackInProgress;
    private long holyWorldHiddenSinceNanos;
    private final TimerUtils backTimer = new TimerUtils();
    private TpsSync tpsSync = TpsSync.INSTANCE;
-   private static final int ATTACK_DELAY_MIN_TICKS = 3;
-   private static final int ATTACK_DELAY_MAX_TICKS = 13;
+   /** Разброс после удара: только он, темп задаёт кулдаун (P()). */
+   private static final int ATTACK_DELAY_MIN_TICKS = 0;
+   private static final int ATTACK_DELAY_MAX_TICKS = 2;
    private int attackDelayTicks = 0;
    private int ticksToAttack = 0;
    private LivingEntity lastDataTarget = null;
@@ -179,6 +185,10 @@ public class Aura extends Function {
    private static final EquipmentSlot[] ARMOR_SLOTS = new EquipmentSlot[]{EquipmentSlot.FEET, EquipmentSlot.LEGS, EquipmentSlot.CHEST, EquipmentSlot.HEAD};
 
    public void setTarget(LivingEntity var1) {
+      if (this.target != var1) {
+         this.critWaitTicks = 0;
+      }
+
       this.target = var1;
    }
 
@@ -205,6 +215,7 @@ public class Aura extends Function {
          this.targets,
          this.range,
          this.smartCrit,
+         this.critWait,
          this.onlyCrits,
          this.sprintReset,
          this.attackOnEating,
@@ -524,7 +535,13 @@ public class Aura extends Function {
          return false;
       }
 
-      if (!this.onlyCrits.isOn() && !this.smartCrit.isEnabled() && !IdealHitUtils.e()) {
+      if (!this.onlyCrits.isOn() && !this.smartCrit.isEnabled()) {
+         return false;
+      }
+
+      // Спринт мешает только воздушному криту. На земле крита не бывает вообще,
+      // поэтому там отпускать спринт = терять тик и без причины сбивать W-тап.
+      if (!IdealHitUtils.e()) {
          return false;
       }
 
@@ -934,6 +951,7 @@ public class Aura extends Function {
       } else if (this.target == null || !this.e(this.target)) {
          LivingEntity var1 = this.target;
          this.target = this.H();
+         this.critWaitTicks = 0;
          if (this.target != null) {
             if (!this.hadTarget) {
                this.hadTarget = true;
@@ -1009,6 +1027,7 @@ public class Aura extends Function {
       }
 
       this.attackAge = mc.player.age;
+      this.critWaitTicks = 0;
       this.attackJitter = ThreadLocalRandom.current().nextFloat() * 0.03F;
       Hand var1 = null;
       if (this.unpressShield.isEnabled()) {
@@ -1066,21 +1085,18 @@ public class Aura extends Function {
       this.attackTimer.a();
    }
 
+   /**
+    * Пауза после удара. Раньше тут был случайный разброс 3..14 тиков: он складывался
+    * с кулдауном и заметно растягивал серию ударов. Теперь темп задаёт только кулдаун
+    * (проверка в P()), а этот таймер добавляет 0..2 тика разброса, чтобы интервалы
+    * не были строго одинаковыми (по ним ловят AutoClicker).
+    */
    private int L() {
       if (this.rotationType.isSelected("Legit")) {
          return ThreadLocalRandom.current().nextInt(0, 2);
       }
 
-      if (!this.S()) {
-         return 0;
-      }
-
-      int var1 = ThreadLocalRandom.current().nextInt(3, 14);
-      if (this.tpsSync != null && this.tpsSync.a()) {
-         var1 = MathHelper.clamp(Math.round((float)this.tpsSync.a(var1 * 50L) / 50.0F), 3, 13);
-      }
-
-      return var1;
+      return ThreadLocalRandom.current().nextInt(ATTACK_DELAY_MIN_TICKS, ATTACK_DELAY_MAX_TICKS + 1);
    }
 
    private Hand M() {
@@ -1254,16 +1270,52 @@ public class Aura extends Function {
             return this.throughWalls.isEnabled() || this.c(var1);
          } else if (!this.rotationType.isSelected("Legit") && !clientLook.isEnabled()) {
             return this.hasServerRotation
-               ? this.b(this.lastServerYaw, this.lastServerPitch, var1, var2)
-               : this.b(mc.player.getYaw(), mc.player.getPitch(), var1, var2);
+               ? this.p(this.lastServerYaw, this.lastServerPitch, var1, var2)
+               : this.p(mc.player.getYaw(), mc.player.getPitch(), var1, var2);
          } else {
             return !this.throughWalls.isEnabled() && mc.crosshairTarget instanceof EntityHitResult var3 && var3.getEntity() == var1
                ? mc.player.getEyePos().distanceTo(var3.getPos()) <= var2
-               : this.b(mc.player.getYaw(), mc.player.getPitch(), var1, var2);
+               : this.p(mc.player.getYaw(), mc.player.getPitch(), var1, var2);
          }
       } else {
          return false;
       }
+   }
+
+   /**
+    * Мягкая проверка наводки для режима «Нейро».
+    *
+    * Жёсткий рейкаст по текущей позиции промахивается, когда цель бежит или когда
+    * плавная наводка ещё догоняет кадр — из-за этого аура секундами «наводится,
+    * но не бьёт». Здесь считаем расстояние от луча до хитбокса: пока луч проходит
+    * в 0.4 блока от бокса, серверный луч тоже его заденет (бокс едет вместе с целью).
+    */
+   private boolean p(float var1, float var2, LivingEntity var3, float var4) {
+      if (mc.player == null || mc.world == null || var3 == null) {
+         return false;
+      }
+
+      Vec3d var5 = mc.player.getEyePos();
+      Box var6 = var3.getBoundingBox().expand(var3.getTargetingMargin() + 0.3);
+      if (var6.squaredMagnitude(var5) > (var4 + 0.5) * (var4 + 0.5)) {
+         return false;
+      }
+
+      if (!this.throughWalls.isEnabled()) {
+         Vec3d var7 = var6.getCenter();
+         BlockHitResult var8 = mc.world.raycast(new RaycastContext(var5, var7, ShapeType.COLLIDER, FluidHandling.NONE, mc.player));
+         if (var8 != null && var8.getType() != Type.MISS && var5.squaredDistanceTo(var8.getPos()) < var5.squaredDistanceTo(var7) - 1.0E-4) {
+            return false;
+         }
+      }
+
+      Vec3d var9 = Vec3d.fromPolar(var2, var1).normalize();
+      double var10 = MathHelper.clamp(var5.distanceTo(var6.getCenter()) + 0.6, 0.5, var4 + 0.6);
+      Vec3d var11 = var5.add(var9.multiply(var10));
+      double var12 = MathHelper.clamp(var11.x, var6.minX, var6.maxX) - var11.x;
+      double var13 = MathHelper.clamp(var11.y, var6.minY, var6.maxY) - var11.y;
+      double var14 = MathHelper.clamp(var11.z, var6.minZ, var6.maxZ) - var11.z;
+      return var12 * var12 + var13 * var13 + var14 * var14 <= 0.16;
    }
 
    public boolean b(float var1, float var2, LivingEntity var3, float var4) {
@@ -1308,7 +1360,7 @@ public class Aura extends Function {
          // приходит раньше пакета с поворотом, и античит видит удар «не туда» (badpackets).
          if (this.rotationType.isSelected("Нейро")
             && this.hasServerRotation
-            && !this.b(this.lastServerYaw, this.lastServerPitch, this.target, this.range.getFloatValue())) {
+            && !this.p(this.lastServerYaw, this.lastServerPitch, this.target, this.range.getFloatValue())) {
             return false;
          }
 
@@ -1346,7 +1398,23 @@ public class Aura extends Function {
             }
          }
 
-         return !this.onlyCrits.isOn() ? IdealHitUtils.a(this.target, this.smartCrit.isEnabled()) : IdealHitUtils.d() || IdealHitUtils.e();
+         if (this.onlyCrits.isOn()) {
+            return IdealHitUtils.d() || IdealHitUtils.e();
+         }
+
+         if (!this.smartCrit.isEnabled()) {
+            return true;
+         }
+
+         if (IdealHitUtils.a(this.target, true)) {
+            this.critWaitTicks = 0;
+            return true;
+         }
+
+         // Ждём крит, но не бесконечно: если удар уже готов и крит всё никак не
+         // складывается (цель уходит, мы на подъёме прыжка), лучше ударить обычным
+         // ударом, чем пропустить окно. Иначе аура «наводится и не бьёт» по полсекунды.
+         return ++this.critWaitTicks > (int)this.critWait.getFloatValue();
       } else {
          return false;
       }
