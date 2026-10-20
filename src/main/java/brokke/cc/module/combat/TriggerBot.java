@@ -250,8 +250,9 @@ public class TriggerBot extends Function {
       this.target = var3;
       this.lastAttack = var4;
       this.legitLastAttackAge = mc.player.age;
+      // Без повторного swingHand: LivingEntity.attack() уже махнул рукой и отправил
+      // HandSwingC2SPacket — второй мах на удар считается лишним пакетом.
       mc.interactionManager.attackEntity(mc.player, var3);
-      mc.player.swingHand(Hand.MAIN_HAND);
       if (legit) {
          if (this.legitSprintReset.isToggled()) {
             // мягкий W-тап: на один тик отпускаем спринт, вперёд продолжаем идти

@@ -73,10 +73,8 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.item.MaceItem;
 import net.minecraft.item.ShieldItem;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket.Mode;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
@@ -151,6 +149,8 @@ public class Aura extends Function {
    private boolean hasServerRotation;
    /** Разброс момента удара: античиты (AutoClicker) ловят строго одинаковые интервалы. */
    private float attackJitter;
+   /** Тик, на котором отпустили спринт ради крита (защита от повторного отпускания). */
+   private int critReleaseAge = Integer.MIN_VALUE;
    private LivingEntity holyWorldServerTarget;
    private boolean auraAttackInProgress;
    private long holyWorldHiddenSinceNanos;
@@ -514,6 +514,31 @@ public class Aura extends Function {
       }
    }
 
+   /**
+    * Крит требует, чтобы сервер видел нас БЕЗ спринта в момент удара. Вместо того чтобы
+    * в одном тике слать STOP+START_SPRINTING (пакетный крит), отпускаем спринт на этот тик
+    * (как W-тап у человека) и бьём следующим тиком — пакеты о спринте уходят обычным путём.
+    * @return true, если удар отложен на следующий тик
+    */
+   private boolean critSprintRelease() {
+      if (mc.player == null || !mc.player.isSprinting()) {
+         return false;
+      }
+
+      if (!this.onlyCrits.isOn() && !this.smartCrit.isEnabled() && !IdealHitUtils.e()) {
+         return false;
+      }
+
+      if (this.critReleaseAge == mc.player.age) {
+         return false;
+      }
+
+      this.critReleaseAge = mc.player.age;
+      SprintReset.a("Legit", true);
+      // если отпустить не удалось (в воздухе/в воде) — не тормозим удары
+      return SprintReset.a();
+   }
+
    private void E() {
       this.I();
       if (this.target != null) {
@@ -535,6 +560,10 @@ public class Aura extends Function {
                && this.skyTimeHitChance.getFloatValue() < 100.0F
                && ThreadLocalRandom.current().nextFloat() * 100.0F >= this.skyTimeHitChance.getFloatValue()) {
                this.attackDelayTicks = 1;
+               return;
+            }
+
+            if (this.critSprintRelease()) {
                return;
             }
 
@@ -960,7 +989,17 @@ public class Aura extends Function {
    }
 
    private void K() {
-      if (mc.currentScreen != null) {
+      if (mc.currentScreen != null || mc.player == null || mc.getNetworkHandler() == null) {
+         return;
+      }
+
+      // Удар по сущности, которой на сервере уже нет (деспавн бота, смерть в том же тике),
+      // — это невалидный PlayerInteractEntityC2SPacket, то есть BadPackets.
+      if (this.target == null || this.target.isRemoved() || !this.target.isAlive()) {
+         return;
+      }
+
+      if (mc.player.isDead() || mc.player.isSpectator()) {
          return;
       }
 
@@ -993,26 +1032,17 @@ public class Aura extends Function {
          }
 
          if (!var2) {
-            int var14 = !IdealHitUtils.e() && !this.onlyCrits.isOn() ? 0 : 1;
             boolean var16 = mc.player.isSprinting();
-            if (var14 != 0 && var16) {
-               if (mc.player.networkHandler != null) {
-                  mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player, Mode.STOP_SPRINTING));
-               }
-
-               mc.player.setSprinting(false);
-            }
 
             try {
+               // Никаких ручных ClientCommandC2SPacket: START/STOP_SPRINTING в одном тике
+               // вокруг удара — это «пакетный крит», который Shard/Sloth и ловят как
+               // BadPackets. Спринт отпускается на тик раньше (critSprintRelease), а
+               // пакеты о состоянии спринта отправляет сам клиент, в обычном порядке.
                mc.interactionManager.attackEntity(mc.player, this.target);
             } finally {
-               if (var14 == 0 && mc.player != null && mc.player.isOnGround()) {
+               if (mc.player != null && mc.player.isOnGround()) {
                   SprintReset.a(this.sprintReset.getActiveMode(), var16);
-               } else if (var14 != 0 && var16 && mc.player != null) {
-                  mc.player.setSprinting(true);
-                  if (mc.player.networkHandler != null) {
-                     mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player, Mode.START_SPRINTING));
-                  }
                }
             }
          }
@@ -1020,7 +1050,8 @@ public class Aura extends Function {
          this.auraAttackInProgress = false;
       }
 
-      mc.player.swingHand(Hand.MAIN_HAND);
+      // НЕ swingHand: LivingEntity.attack() уже махнул рукой и отправил HandSwingC2SPacket.
+      // Второй swing на удар — лишний пакет, ровно то, что считают за BadPackets.
       if (var1 != null) {
          this.a(var1);
       }
