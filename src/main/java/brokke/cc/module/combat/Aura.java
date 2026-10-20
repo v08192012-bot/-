@@ -307,7 +307,23 @@ public class Aura extends Function {
          && !this.rotationType.isSelected("Legit")
          && this.moveFix.getSelectedIndex() != 0) {
          if (this.moveFix.getSelectedIndex() == 1) {
-            MovingUtil.a(var1);
+            if (FreeLookStorage.isActive() && mc.player != null) {
+               // Камера отдельно от игрока (silent-наводка): доворачиваем сам ввод на разницу
+               // углов, а не подбираем ближайшее из 8 направлений — иначе персонаж «залипает»
+               // на диагоналях и дёргается, потому что yaw игрока меняется каждый тик.
+               float var2 = MathHelper.wrapDegrees(FreeLookStorage.getFreeYaw() - mc.player.getYaw());
+               if (Math.abs(var2) > 0.01F) {
+                  float var3 = (float)Math.toRadians(var2);
+                  float var4 = MathHelper.sin(var3);
+                  float var5 = MathHelper.cos(var3);
+                  float var6 = var1.getStrafe();
+                  float var7 = var1.getForward();
+                  var1.setStrafe(var6 * var5 - var7 * var4);
+                  var1.setForward(var6 * var4 + var7 * var5);
+               }
+            } else {
+               MovingUtil.a(var1);
+            }
          } else if (this.moveFix.getSelectedIndex() == 2) {
             MovingUtil.a(var1, this.C());
          } else if (this.moveFix.getSelectedIndex() == 3) {
@@ -1305,6 +1321,14 @@ public class Aura extends Function {
 
    private boolean P() {
       if (this.target != null && mc.player != null) {
+         // Нейро: бьём только когда сервер УЖЕ знает нашу наводку. Иначе пакет атаки
+         // приходит раньше пакета с поворотом, и античит видит удар «не туда» (badpackets).
+         if (this.rotationType.isSelected("Нейро")
+            && this.hasServerRotation
+            && !this.b(this.lastServerYaw, this.lastServerPitch, this.target, this.range.getFloatValue())) {
+            return false;
+         }
+
          float var1 = IdealHitUtils.a();
          if (mc.player.getAttackCooldownProgress(0.5F) < var1 - 0.001F) {
             return false;

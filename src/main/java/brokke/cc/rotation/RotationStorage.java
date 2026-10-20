@@ -12,6 +12,10 @@ import net.minecraft.util.math.MathHelper;
 
 public class RotationStorage {
    private static final MinecraftClient mc = MinecraftClient.getInstance();
+   /** Максимальный поворот за один тик (пакет): больше — античиты видят телепорт прицела. */
+   private static final float MAX_YAW_STEP = 55.0F;
+   private static final float MAX_PITCH_STEP = 40.0F;
+   private static final float PITCH_LIMIT = 89.5F;
    public static RotationStorage instance = new RotationStorage();
    private static boolean registered;
    private RotationStorage.a currentTask = RotationStorage.a.IDLE;
@@ -108,7 +112,12 @@ public class RotationStorage {
       RotationStorage var8 = a();
       if (mc.player != null && var8.currentPriority <= var6) {
          var8.clientLook = var7;
-         FreeLookStorage.a(!var7);
+         if (var7) {
+            FreeLookStorage.a(false);
+         } else {
+            // наводка от первого лица выключена: камера отдельно, игрок (и пакеты) — отдельно
+            FreeLookStorage.silent(true);
+         }
          var8.currentYawSpeed = var1;
          var8.currentPitchSpeed = var2;
          var8.currentYawReturnSpeed = var3;
@@ -132,12 +141,14 @@ public class RotationStorage {
 
       float var4 = MathHelper.wrapDegrees(var1.getYaw() - mc.player.getYaw());
       float var5 = var1.getPitch() - mc.player.getPitch();
-      float var6 = Math.min(Math.abs(var4), var2);
-      float var7 = Math.min(Math.abs(var5), var3);
+      float var6 = Math.min(Math.abs(var4), Math.min(var2, MAX_YAW_STEP));
+      float var7 = Math.min(Math.abs(var5), Math.min(var3, MAX_PITCH_STEP));
       float var8 = mc.player.getYaw();
       var8 += GCDUtil.a(MathHelper.clamp(var4, -var6, var6));
       mc.player.setYaw(var8);
-      mc.player.setPitch(MathHelper.clamp(mc.player.getPitch() + GCDUtil.a(MathHelper.clamp(var5, -var7, var7)), -90.0F, 90.0F));
+      mc.player.setPitch(
+         MathHelper.clamp(mc.player.getPitch() + GCDUtil.a(MathHelper.clamp(var5, -var7, var7)), -PITCH_LIMIT, PITCH_LIMIT)
+      );
       this.idleTicks = 0;
       float var9 = Math.abs(MathHelper.wrapDegrees(mc.player.getYaw() - var1.getYaw()));
       float var10 = Math.abs(mc.player.getPitch() - var1.getPitch());
@@ -145,15 +156,29 @@ public class RotationStorage {
    }
 
    public void j() {
+      boolean var0 = FreeLookStorage.isSilent();
+      if (FreeLookStorage.isActive() && mc.player != null) {
+         float var1 = Math.abs(MathHelper.wrapDegrees(FreeLookStorage.getFreeYaw() - mc.player.getYaw()));
+         float var2 = Math.abs(FreeLookStorage.getFreePitch() - mc.player.getPitch());
+         boolean var3 = var0 && this.currentYawReturnSpeed > 0.0F && this.currentPitchReturnSpeed > 0.0F;
+         if (var3 && (var1 > 8.0F || var2 > 6.0F)) {
+            // Не телепортируем прицел назад (сервер видит мгновенный разворот — badpackets):
+            // доворачиваем плавно, как обычный возврат взгляда.
+            this.currentTask = RotationStorage.a.RESET;
+            this.currentPriority = 0;
+            this.targetRotation = new Rotation2(FreeLookStorage.getFreeYaw(), FreeLookStorage.getFreePitch());
+            this.idleTicks = 0;
+            return;
+         }
+
+         mc.player.setYaw(FreeLookStorage.getFreeYaw());
+         mc.player.setPitch(MathHelper.clamp(FreeLookStorage.getFreePitch(), -PITCH_LIMIT, PITCH_LIMIT));
+      }
+
       this.currentTask = RotationStorage.a.IDLE;
       this.currentPriority = 0;
       this.targetRotation = null;
       this.clientLook = true;
-      if (FreeLookStorage.isActive() && mc.player != null) {
-         mc.player.setYaw(FreeLookStorage.getFreeYaw());
-         mc.player.setPitch(FreeLookStorage.getFreePitch());
-      }
-
       FreeLookStorage.a(false);
    }
 

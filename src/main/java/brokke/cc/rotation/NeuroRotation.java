@@ -176,7 +176,7 @@ public class NeuroRotation extends RotationsSystem {
          this.smooth
       );
       float var16 = MathHelper.wrapDegrees(this.requestedYaw + var15[0]);
-      float var17 = MathHelper.clamp(this.requestedPitch + var15[1], -90.0F, 90.0F);
+      float var17 = MathHelper.clamp(this.requestedPitch + var15[1], -89.5F, 89.5F);
 
       // GCD: живой игрок двигает мышь квантами, шаг модели тоже округляем под сенсу.
       // Округление (а не отбрасывание остатка) важно: суб-квантовые шаги иначе теряются
@@ -188,7 +188,7 @@ public class NeuroRotation extends RotationsSystem {
          var16 = MathHelper.wrapDegrees(mc.player.getYaw() + var19);
          float var20 = var17 - mc.player.getPitch();
          var20 = Math.round(var20 / var18) * var18;
-         var17 = MathHelper.clamp(mc.player.getPitch() + var20, -90.0F, 90.0F);
+         var17 = MathHelper.clamp(mc.player.getPitch() + var20, -89.5F, 89.5F);
       }
 
       if (!Float.isFinite(var16) || !Float.isFinite(var17)) {
