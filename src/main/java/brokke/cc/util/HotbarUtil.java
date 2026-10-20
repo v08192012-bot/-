@@ -233,8 +233,14 @@ public final class HotbarUtil {
       }
    }
 
+   /**
+    * Переключение слота с пакетом, но БЕЗ смены клиентского слота (silent switch).
+    * Античиты (Shard/Sloth) считают такой «выбор слота и возврат» невозможным — BadPackets.
+    * Поэтому всегда меняем и клиентский слот: сервер и клиент остаются синхронны.
+    */
    public static void c(int var0) {
       if (mc.player != null && mc.getNetworkHandler() != null && var0 >= 0 && var0 <= 8 && mc.player.getInventory().getSelectedSlot() != var0) {
+         mc.player.getInventory().setSelectedSlot(var0);
          mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(var0));
       }
    }

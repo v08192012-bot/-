@@ -27,7 +27,10 @@ public abstract class ClientConnectionMixin {
    public void triggerSendPacketEvent(Packet<?> var1, CallbackInfo var2) {
       if (var1 instanceof UpdateSelectedSlotC2SPacket var3) {
          int var4 = var3.getSelectedSlot();
-         if (var4 < 0 || var4 > 8 || var4 == SlotTracker.serverHeldItemSlot) {
+         // Отменять пакет смены слота нельзя: ваниль уже считает, что сервер его получил,
+         // и клиент с сервером навсегда расходятся по «предмету в руке» — удар приходит
+         // с предметом, которого сервер не ждёт (BadPackets). Только отслеживаем.
+         if (var4 < 0 || var4 > 8) {
             var2.cancel();
             return;
          }

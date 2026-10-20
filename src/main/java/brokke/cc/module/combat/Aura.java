@@ -11,11 +11,9 @@ import brokke.cc.module.player.NoRotate;
 import brokke.cc.core.AuraChecks;
 import brokke.cc.core.FakePlayerEntity;
 import brokke.cc.core.FreeLookStorage;
-import brokke.cc.core.SlotSearchResult;
 import brokke.cc.core.SprintReset;
 import brokke.cc.core.TpsSync;
 import brokke.cc.manager.FriendManager;
-import brokke.cc.manager.SwapManager;
 import brokke.cc.nav.BestPoint;
 import brokke.cc.rotation.AimAssistRotation;
 import brokke.cc.rotation.FuntimeRotation;
@@ -74,7 +72,6 @@ import net.minecraft.item.Items;
 import net.minecraft.item.MaceItem;
 import net.minecraft.item.ShieldItem;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
@@ -151,6 +148,8 @@ public class Aura extends Function {
    private float attackJitter;
    /** Тик, на котором отпустили спринт ради крита (защита от повторного отпускания). */
    private int critReleaseAge = Integer.MIN_VALUE;
+   /** Тик последнего удара: не больше одного attack-пакета за тик. */
+   private int attackAge = Integer.MIN_VALUE;
    private LivingEntity holyWorldServerTarget;
    private boolean auraAttackInProgress;
    private long holyWorldHiddenSinceNanos;
@@ -1003,6 +1002,13 @@ public class Aura extends Function {
          return;
       }
 
+      // Один удар за тик — как у ванили. Два attack-пакета в одном тике
+      // античиты считают MorePackets/BadPackets.
+      if (this.attackAge == mc.player.age) {
+         return;
+      }
+
+      this.attackAge = mc.player.age;
       this.attackJitter = ThreadLocalRandom.current().nextFloat() * 0.03F;
       Hand var1 = null;
       if (this.unpressShield.isEnabled()) {
@@ -1015,43 +1021,26 @@ public class Aura extends Function {
       this.auraAttackInProgress = true;
 
       try {
-         boolean var2 = false;
-         if (this.target instanceof PlayerEntity var3 && var3.isBlocking() && this.breakShield.isEnabled()) {
-            if (this.rotationType.isSelected("Legit")) {
-               SlotSearchResult var15 = HotbarUtil.c();
-               if (var15.isFound() && var15.d()) {
-                  int var5 = mc.player.getInventory().getSelectedSlot();
-                  if (var15.getSlot() == var5) {
-                     mc.interactionManager.attackEntity(mc.player, var3);
-                     var2 = true;
-                  }
-               }
-            } else {
-               var2 = this.a(var3);
-            }
-         }
+         boolean var16 = mc.player.isSprinting();
 
-         if (!var2) {
-            boolean var16 = mc.player.isSprinting();
-
-            try {
-               // Никаких ручных ClientCommandC2SPacket: START/STOP_SPRINTING в одном тике
-               // вокруг удара — это «пакетный крит», который Shard/Sloth и ловят как
-               // BadPackets. Спринт отпускается на тик раньше (critSprintRelease), а
-               // пакеты о состоянии спринта отправляет сам клиент, в обычном порядке.
-               mc.interactionManager.attackEntity(mc.player, this.target);
-            } finally {
-               if (mc.player != null && mc.player.isOnGround()) {
-                  SprintReset.a(this.sprintReset.getActiveMode(), var16);
-               }
+         try {
+            // Удар всегда текущим слотом. Никаких silent-switch (UpdateSelectedSlot туда-обратно
+            // в одном тике) и никаких ручных START/STOP_SPRINTING вокруг удара — Shard/Sloth
+            // ловят именно такие «невозможные» комбинации как BadPackets.
+            mc.interactionManager.attackEntity(mc.player, this.target);
+         } finally {
+            if (mc.player != null && mc.player.isOnGround()) {
+               SprintReset.a(this.sprintReset.getActiveMode(), var16);
             }
          }
       } finally {
          this.auraAttackInProgress = false;
       }
 
-      // НЕ swingHand: LivingEntity.attack() уже махнул рукой и отправил HandSwingC2SPacket.
-      // Второй swing на удар — лишний пакет, ровно то, что считают за BadPackets.
+      // Взмах ОБЯЗАТЕЛЕН и ровно один: attackEntity в 1.21.11 рукой не машет,
+      // ваниль делает swingHand из MinecraftClient.doAttack. Без HandSwingC2SPacket
+      // удар выглядит как «удар без анимации» — это ровно то, что ловят Shard/Sloth.
+      mc.player.swingHand(Hand.MAIN_HAND);
       if (var1 != null) {
          this.a(var1);
       }
@@ -1092,79 +1081,6 @@ public class Aura extends Function {
       }
 
       return var1;
-   }
-
-   private boolean a(PlayerEntity var1) {
-      SlotSearchResult var2 = HotbarUtil.c();
-      if (!var2.isFound()) {
-         return false;
-      }
-
-      int var3 = mc.player.getInventory().getSelectedSlot();
-      if (var2.getSlot() == var3) {
-         mc.interactionManager.attackEntity(mc.player, var1);
-         return true;
-      }
-
-      if (var2.d()) {
-         return this.a(var1, var2.getSlot(), var3);
-      }
-
-      if (mc.player.currentScreenHandler.syncId != 0) {
-         return false;
-      }
-
-      int var4;
-      if ((var4 = this.b(var3)) == -1) {
-         return false;
-      }
-
-      this.a(var2.getSlot(), var4);
-      byte var5 = 0;
-      boolean var9 = false;
-
-      try {
-         var9 = this.a(var1, var4, var3);
-      } finally {
-         this.a(var2.getSlot(), var4);
-      }
-
-      return var9;
-   }
-
-   private boolean a(PlayerEntity var1, int var2, int var3) {
-      if (mc.player != null && mc.player.networkHandler != null && mc.interactionManager != null) {
-         if (var2 >= 0 && var2 <= 8 && var2 != var3) {
-            mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(var2));
-         }
-
-         try {
-            mc.interactionManager.attackEntity(mc.player, var1);
-            return true;
-         } finally {
-            if (var3 >= 0 && var3 <= 8 && var2 != var3) {
-               mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(var3));
-            }
-         }
-      } else {
-         return false;
-      }
-   }
-
-   private void a(int var1, int var2) {
-      if (mc.player != null && mc.interactionManager != null && mc.player.networkHandler != null) {
-         SwapManager.a(var1, var2);
-      }
-   }
-
-   private int b(int var1) {
-      for (int var2 = 8; var2 >= 0; var2--) {
-         if (var2 != var1) {
-            return var2;
-         }
-      }
-
-      return var1 >= 0 && var1 < 9 ? var1 : -1;
    }
 
    private Hand M() {
