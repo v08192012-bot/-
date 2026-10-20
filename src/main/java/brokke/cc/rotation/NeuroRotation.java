@@ -198,7 +198,7 @@ public class NeuroRotation extends RotationsSystem {
 
       this.requestedYaw = var16;
       this.requestedPitch = var17;
-      RotationStorage.a(new Rotation2(var16, var17), 360.0F, 360.0F, 45.0F, 45.0F, 2, ROTATION_PRIORITY, this.visibleAim);
+      RotationStorage.a(new Rotation2(var16, var17), 360.0F, 360.0F, 45.0F, 45.0F, 3, ROTATION_PRIORITY, this.visibleAim);
    }
 
    private float scale() {

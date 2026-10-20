@@ -164,6 +164,13 @@ public final class SpaceTimeDriver {
             float corr = 0.10F + 0.18F * smooth;
             intendedYaw += wrap(totalErrYaw - intendedYaw) * corr;
             intendedPitch += (totalErrPitch - intendedPitch) * corr;
+
+            // человеческий «перелёт» на больших доводках: 6% тиков рука проскакивает
+            // и потом доводит — ровный, математически идеальный трек античиты ловят
+            if (rnd.nextFloat() < 0.06F && Math.abs(totalErrYaw) + Math.abs(totalErrPitch) > 5.0F) {
+               intendedYaw *= 1.08F;
+               intendedPitch *= 1.06F;
+            }
          }
 
          if (forceMove && Math.abs(intendedYaw) + Math.abs(intendedPitch) < 0.2F) {

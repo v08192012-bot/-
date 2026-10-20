@@ -149,6 +149,8 @@ public class Aura extends Function {
    private float lastServerYaw;
    private float lastServerPitch;
    private boolean hasServerRotation;
+   /** Разброс момента удара: античиты (AutoClicker) ловят строго одинаковые интервалы. */
+   private float attackJitter;
    private LivingEntity holyWorldServerTarget;
    private boolean auraAttackInProgress;
    private long holyWorldHiddenSinceNanos;
@@ -929,6 +931,11 @@ public class Aura extends Function {
    }
 
    private void K() {
+      if (mc.currentScreen != null) {
+         return;
+      }
+
+      this.attackJitter = ThreadLocalRandom.current().nextFloat() * 0.03F;
       Hand var1 = null;
       if (this.unpressShield.isEnabled()) {
          var1 = this.M();
@@ -1329,7 +1336,9 @@ public class Aura extends Function {
             return false;
          }
 
-         float var1 = IdealHitUtils.a();
+         // Джиттер ТОЛЬКО вверх: ударить раньше полного кулдауна = потерять урон,
+         // а вот «всегда ровно на 0.98» — это ровный таймер, который ловят AutoClicker-чеки
+         float var1 = Math.min(0.995F, IdealHitUtils.a() + this.attackJitter);
          if (mc.player.getAttackCooldownProgress(0.5F) < var1 - 0.001F) {
             return false;
          }
@@ -1351,9 +1360,11 @@ public class Aura extends Function {
             }
          } else {
             double var3 = this.target.getBoundingBox().squaredMagnitude(mc.player.getEyePos());
+            // минус 8 см: цель за время пинга успевает отойти, и серверный Reach-чек
+            // (он считает по своей, уже устаревшей позиции) ловит «удар с 3.01»
             double var5 = this.rotationType.isSelected("Legit") && !this.throughWalls.isEnabled()
                ? Math.min(this.range.getFloatValue(), 3.0F)
-               : this.range.getFloatValue();
+               : this.range.getFloatValue() - 0.08;
             if (var3 > var5 * var5) {
                return false;
             }
