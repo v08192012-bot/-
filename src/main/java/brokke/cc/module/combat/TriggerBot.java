@@ -236,6 +236,8 @@ public class TriggerBot extends Function {
          : (legit ? this.legitThreshold : IdealHitUtils.a());
       boolean var7 = this.b(var6)
          && this.c(var3)
+         // Цель в иммунитете — удар уйдёт без урона, лучше подождать следующий тик.
+         && var3.hurtTime <= 0
          && this.a(mc.player.getMainHandStack().getItem() == Items.MACE, var3)
          && (!auraSkyTime || var2.skyTimeTriggerAllow());
       if (var7 && legit && !this.legitReady(var4)) {

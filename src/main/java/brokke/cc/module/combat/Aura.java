@@ -164,6 +164,15 @@ public class Aura extends Function {
    private int attackAge = Integer.MIN_VALUE;
    /** Сколько тиков удар уже готов, но ждёт крит (см. critWait). */
    private int critWaitTicks;
+   /** Сколько тиков ждём спада hurtTime у цели, чтобы удар не ушёл в иммунитет. */
+   private int hurtWaitTicks;
+   /** Диагностика: удар отправлен, ждём подтверждения урона. */
+   private int attackSentAge = Integer.MIN_VALUE;
+   private LivingEntity attackTrackedTarget;
+   private int attackTargetHurtAtSend;
+   /** Удары и удары без урона — для .neuro status. */
+   private static int dbgAttacks;
+   private static int dbgNoDamage;
    private LivingEntity holyWorldServerTarget;
    private boolean auraAttackInProgress;
    private long holyWorldHiddenSinceNanos;
@@ -196,6 +205,7 @@ public class Aura extends Function {
    public void setTarget(LivingEntity var1) {
       if (this.target != var1) {
          this.critWaitTicks = 0;
+         this.hurtWaitTicks = 0;
       }
 
       this.target = var1;
@@ -318,40 +328,41 @@ public class Aura extends Function {
    public void onMoveInput(EventMoveInput var1) {
       this.a(var1);
       SprintReset.a(var1);
-      if (this.target != null && !IdealHitUtils.d() && (this.onlyCrits.isOn() || this.smartCrit.isEnabled() && !mc.player.isOnGround() || IdealHitUtils.e())) {
-         var1.setSprint(false);
-      }
+      // Спринт больше не выключаем «на всякий случай» каждый воздушный тик:
+      // это и давало рывки в движении. Под крит спринт отпускается точечно,
+      // за тик до удара (scheduleCritRelease).
    }
 
    private void a(EventMoveInput var1) {
-      if (mc.player != null
-         && this.target != null
-         && !this.rotationType.isSelected("NoRotate")
-         && !this.rotationType.isSelected("Legit")
-         && this.moveFix.getSelectedIndex() != 0) {
-         if (this.moveFix.getSelectedIndex() == 1) {
-            if (FreeLookStorage.isActive() && mc.player != null) {
-               // Камера отдельно от игрока (silent-наводка): доворачиваем сам ввод на разницу
-               // углов, а не подбираем ближайшее из 8 направлений — иначе персонаж «залипает»
-               // на диагоналях и дёргается, потому что yaw игрока меняется каждый тик.
-               float var2 = MathHelper.wrapDegrees(FreeLookStorage.getFreeYaw() - mc.player.getYaw());
-               if (Math.abs(var2) > 0.01F) {
-                  float var3 = (float)Math.toRadians(var2);
-                  float var4 = MathHelper.sin(var3);
-                  float var5 = MathHelper.cos(var3);
-                  float var6 = var1.getStrafe();
-                  float var7 = var1.getForward();
-                  var1.setStrafe(var6 * var5 - var7 * var4);
-                  var1.setForward(var6 * var4 + var7 * var5);
-               }
-            } else {
-               MovingUtil.a(var1);
-            }
-         } else if (this.moveFix.getSelectedIndex() == 2) {
-            MovingUtil.a(var1, this.C());
-         } else if (this.moveFix.getSelectedIndex() == 3) {
-            this.a(var1, this.C(), this.D());
+      if (mc.player == null || this.rotationType.isSelected("NoRotate") || this.rotationType.isSelected("Legit")) {
+         return;
+      }
+
+      if (this.moveFix.getSelectedIndex() == 0) {
+         return;
+      }
+
+      if (this.moveFix.getSelectedIndex() == 1) {
+         // «Свободная»: ввод всегда доворачивается на разницу между камерой и игроком,
+         // непрерывно, без подбора из 8 направлений. Старый MovingUtil.a() округлял ввод
+         // до ближайшей диагонали, и при плавной наводке персонаж «залипал» и дёргался.
+         // Делаем это и без цели: пока камера возвращается, ввод тоже должен быть согласован.
+         float var2 = FreeLookStorage.isActive()
+            ? MathHelper.wrapDegrees(FreeLookStorage.getFreeYaw() - mc.player.getYaw())
+            : 0.0F;
+         if (Math.abs(var2) > 0.01F) {
+            float var3 = (float)Math.toRadians(var2);
+            float var4 = MathHelper.sin(var3);
+            float var5 = MathHelper.cos(var3);
+            float var6 = var1.getStrafe();
+            float var7 = var1.getForward();
+            var1.setStrafe(var6 * var5 - var7 * var4);
+            var1.setForward(var6 * var4 + var7 * var5);
          }
+      } else if (this.target != null && this.moveFix.getSelectedIndex() == 2) {
+         MovingUtil.a(var1, this.C());
+      } else if (this.target != null && this.moveFix.getSelectedIndex() == 3) {
+         this.a(var1, this.C(), this.D());
       }
    }
 
@@ -491,7 +502,9 @@ public class Aura extends Function {
             this.attackDelayTicks--;
          }
 
+         this.verifyAttack();
          if (!ModuleClass.packetCriticals.a() || !mc.player.hasStatusEffect(StatusEffects.SLOW_FALLING)) {
+            this.scheduleCritRelease();
             this.E();
          }
       }
@@ -502,10 +515,46 @@ public class Aura extends Function {
    public static float dbgMaxPitchStep;
    public static int dbgBigSteps;
 
+   /**
+    * Через 2 тика после удара проверяем, вырос ли hurtTime у цели: если нет, сервер
+    * удар не засчитал (иммунитет/щит/дистанция). Счётчик нужен, чтобы такие удары
+    * было видно в .neuro status как «без урона», а не гадать по ощущениям.
+    */
+   private void verifyAttack() {
+      if (this.attackSentAge == Integer.MIN_VALUE || mc.player == null) {
+         this.attackSentAge = Integer.MIN_VALUE;
+         this.attackTrackedTarget = null;
+         return;
+      }
+
+      if (mc.player.age - this.attackSentAge < 2) {
+         return;
+      }
+
+      LivingEntity var1 = this.attackTrackedTarget;
+      boolean var2 = var1 == null || var1.isRemoved() || var1.isDead() || var1.hurtTime > this.attackTargetHurtAtSend;
+      if (!var2) {
+         dbgNoDamage++;
+      }
+
+      this.attackSentAge = Integer.MIN_VALUE;
+      this.attackTrackedTarget = null;
+   }
+
+   public static int dbgAttacks() {
+      return dbgAttacks;
+   }
+
+   public static int dbgNoDamage() {
+      return dbgNoDamage;
+   }
+
    public static void dbgReset() {
       dbgMaxYawStep = 0.0F;
       dbgMaxPitchStep = 0.0F;
       dbgBigSteps = 0;
+      dbgAttacks = 0;
+      dbgNoDamage = 0;
    }
 
    @EventHandler(priority = EventPriority.LOWEST)
@@ -536,34 +585,39 @@ public class Aura extends Function {
    }
 
    /**
-    * Крит требует, чтобы сервер видел нас БЕЗ спринта в момент удара. Вместо того чтобы
-    * в одном тике слать STOP+START_SPRINTING (пакетный крит), отпускаем спринт на этот тик
-    * (как W-тап у человека) и бьём следующим тиком — пакеты о спринте уходят обычным путём.
-    * @return true, если удар отложен на следующий тик
+    * Крит требует, чтобы сервер видел нас БЕЗ спринта в момент удара.
+    *
+    * Раньше спринт отпускался прямо в тик удара и удар сдвигался на следующий — из-за
+    * этого на прыжках терялось 2-3 удара и разваливалось комбо. Теперь спринт отпускается
+    * ЗА ТИК до готовности удара: пакет STOP_SPRINTING уходит обычным путём, а удар
+    * случается ровно в свой тик и уже критом.
     */
-   private boolean critSprintRelease() {
-      if (mc.player == null || !mc.player.isSprinting()) {
-         return false;
+   private void scheduleCritRelease() {
+      if (mc.player == null || this.target == null) {
+         return;
       }
 
-      if (!this.onlyCrits.isOn() && !this.smartCrit.isEnabled()) {
-         return false;
+      if (!this.smartCrit.isEnabled() && !this.onlyCrits.isOn()) {
+         return;
       }
 
-      // Спринт мешает только воздушному криту. На земле крита не бывает вообще,
-      // поэтому там отпускать спринт = терять тик и без причины сбивать W-тап.
-      if (!IdealHitUtils.e()) {
-         return false;
+      if (this.attackDelayTicks > 1 || this.critReleaseAge == mc.player.age) {
+         return;
       }
 
-      if (this.critReleaseAge == mc.player.age) {
-         return false;
+      // Крит возможен только в падении, на земле и на подъёме отпускать нечего.
+      if (!mc.player.isSprinting() || !IdealHitUtils.e()) {
+         return;
       }
 
-      this.critReleaseAge = mc.player.age;
-      SprintReset.a("Legit", true);
-      // если отпустить не удалось (в воздухе/в воде) — не тормозим удары
-      return SprintReset.a();
+      float var1 = Math.min(0.995F, IdealHitUtils.a() + this.attackJitter);
+      if (mc.player.getAttackCooldownProgress(0.5F) < var1 - 0.09F) {
+         return;
+      }
+
+      if (SprintReset.d()) {
+         this.critReleaseAge = mc.player.age;
+      }
    }
 
    private void E() {
@@ -587,10 +641,6 @@ public class Aura extends Function {
                && this.skyTimeHitChance.getFloatValue() < 100.0F
                && ThreadLocalRandom.current().nextFloat() * 100.0F >= this.skyTimeHitChance.getFloatValue()) {
                this.attackDelayTicks = 1;
-               return;
-            }
-
-            if (this.critSprintRelease()) {
                return;
             }
 
@@ -978,6 +1028,7 @@ public class Aura extends Function {
          LivingEntity var1 = this.target;
          this.target = this.H();
          this.critWaitTicks = 0;
+         this.hurtWaitTicks = 0;
          if (this.target != null) {
             if (!this.hadTarget) {
                this.hadTarget = true;
@@ -1054,6 +1105,11 @@ public class Aura extends Function {
 
       this.attackAge = mc.player.age;
       this.critWaitTicks = 0;
+      this.hurtWaitTicks = 0;
+      this.attackSentAge = mc.player.age;
+      this.attackTrackedTarget = this.target;
+      this.attackTargetHurtAtSend = this.target.hurtTime;
+      dbgAttacks++;
       this.attackJitter = ThreadLocalRandom.current().nextFloat() * 0.03F;
       Hand var1 = null;
       if (this.unpressShield.isEnabled()) {
@@ -1386,11 +1442,12 @@ public class Aura extends Function {
 
    private boolean P() {
       if (this.target != null && mc.player != null) {
-         // Нейро: бьём только когда сервер УЖЕ знает нашу наводку. Иначе пакет атаки
-         // приходит раньше пакета с поворотом, и античит видит удар «не туда» (badpackets).
-         if (this.rotationType.isSelected("Нейро")
-            && this.hasServerRotation
-            && !this.p(this.lastServerYaw, this.lastServerPitch, this.target, this.range.getFloatValue())) {
+         // Пакет атаки уходит из тика РАНЬШЕ пакета поворота этого же тика, поэтому
+         // сервер проверяет попадание по нашей ПРОШЛОЙ наводке. Если она ещё не лежит
+         // в хитбоксе — удар уходит «в молоко»: пакет есть, урона нет. Ждём тик, пока
+         // наводка (и reach-чек сервера) не сойдётся. Раньше это было только в «Нейро»,
+         // из-за чего в остальных режимах удары иногда не регали.
+         if (this.hasServerRotation && !this.p(this.lastServerYaw, this.lastServerPitch, this.target, this.range.getFloatValue())) {
             return false;
          }
 
@@ -1399,6 +1456,16 @@ public class Aura extends Function {
          float var1 = Math.min(0.995F, IdealHitUtils.a() + this.attackJitter);
          if (mc.player.getAttackCooldownProgress(0.5F) < var1 - 0.001F) {
             return false;
+         }
+
+         // Цель ещё в иммунитете от предыдущего урона: пакет уйдёт, а урона не будет
+         // (ровно это ощущается как «бьёт, но не регает»). Ждём, пока hurtTime спадёт.
+         if (this.target.hurtTime > 0) {
+            if (++this.hurtWaitTicks <= 3) {
+               return false;
+            }
+         } else {
+            this.hurtWaitTicks = 0;
          }
 
          if (!this.f(this.target)) {
@@ -1436,15 +1503,24 @@ public class Aura extends Function {
             return true;
          }
 
-         if (IdealHitUtils.a(this.target, true)) {
+         // Крит возможен только в падении. На земле ждать нечего, а на подъёме
+         // ожидание съедало 2-3 удара подряд (прыжок с ~1 блоком над головой) —
+         // именно из-за этого разваливалось комбо. Ждём максимум 2 тика и только
+         // сразу после верхней точки, когда fallDistance ещё нулевой.
+         if (IdealHitUtils.e()) {
             this.critWaitTicks = 0;
             return true;
          }
 
-         // Ждём крит, но не бесконечно: если удар уже готов и крит всё никак не
-         // складывается (цель уходит, мы на подъёме прыжка), лучше ударить обычным
-         // ударом, чем пропустить окно. Иначе аура «наводится и не бьёт» по полсекунды.
-         return ++this.critWaitTicks > (int)this.critWait.getFloatValue();
+         if (!mc.player.isOnGround()
+            && mc.player.getVelocity().y < 0.0
+            && this.critWaitTicks < Math.min(2, (int)this.critWait.getFloatValue())) {
+            this.critWaitTicks++;
+            return false;
+         }
+
+         this.critWaitTicks = 0;
+         return true;
       } else {
          return false;
       }

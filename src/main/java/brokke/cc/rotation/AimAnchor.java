@@ -14,7 +14,15 @@ public final class AimAnchor {
    private static final long REPICK_MIN_NANOS = 400000000L;
    private static final long REPICK_MAX_NANOS = 1200000000L;
 
+   private static final int HISTORY = 24;
+
    private final Random random = new Random();
+   /** История уже отработанных точек: новую цель выбираем подальше от всех прошлых. */
+   private final double[] historyX = new double[HISTORY];
+   private final double[] historyY = new double[HISTORY];
+   private final double[] historyZ = new double[HISTORY];
+   private int historyCount;
+   private int historyIndex;
    private double anchorX;
    private double anchorY;
    private double anchorZ;
@@ -36,6 +44,8 @@ public final class AimAnchor {
       this.anchorZ = this.goalZ = 0.5;
       this.velX = this.velY = this.velZ = 0.0;
       this.nextRepickNanos = 0L;
+      this.historyCount = 0;
+      this.historyIndex = 0;
    }
 
    /** Новая цель: случайная стартовая точка внутри хитбокса + первый repick. */
@@ -44,6 +54,8 @@ public final class AimAnchor {
       this.anchorY = this.d(0.4, 0.8);
       this.anchorZ = this.d(0.3, 0.7);
       this.velX = this.velY = this.velZ = 0.0;
+      this.historyCount = 0;
+      this.historyIndex = 0;
       this.repick(now);
    }
 
@@ -87,16 +99,23 @@ public final class AimAnchor {
       double y = this.anchorY;
       double z = this.anchorZ;
 
+      // 16 кандидатов, берём самый далёкий от истории точек: тогда прицел не возвращается
+      // в одно и то же место хитбокса и «рисунок» наводки не повторяется.
+      double bestScore = -1.0;
       for (int i = 0; i < 16; i++) {
-         x = this.d(0.12, 0.88);
-         y = this.d(0.22, 0.92);
-         z = this.d(0.12, 0.88);
-         double dist = (x - this.anchorX) * (x - this.anchorX) + (y - this.anchorY) * (y - this.anchorY) * 0.4 + (z - this.anchorZ) * (z - this.anchorZ);
-         if (dist >= 0.0225) {
-            break;
+         double cx = this.d(0.12, 0.88);
+         double cy = this.d(0.22, 0.92);
+         double cz = this.d(0.12, 0.88);
+         double score = this.freshness(cx, cy, cz) * 1.7 + this.random.nextDouble() * 0.05;
+         if (score > bestScore) {
+            bestScore = score;
+            x = cx;
+            y = cy;
+            z = cz;
          }
       }
 
+      this.remember(x, y, z);
       this.goalX = x;
       this.goalY = y;
       this.goalZ = z;
@@ -110,6 +129,36 @@ public final class AimAnchor {
       this.velX = (x - this.anchorX) / norm * speedX;
       this.velY = (y - this.anchorY) / norm * speedY;
       this.velZ = (z - this.anchorZ) / norm * speedX;
+   }
+
+   /** Минимальное расстояние до уже отработанных точек. */
+   private double freshness(double var1, double var3, double var5) {
+      if (this.historyCount == 0) {
+         return 1.0;
+      }
+
+      double var7 = Double.MAX_VALUE;
+      for (int var9 = 0; var9 < this.historyCount; var9++) {
+         double var10 = var1 - this.historyX[var9];
+         double var12 = (var3 - this.historyY[var9]) * 0.4;
+         double var14 = var5 - this.historyZ[var9];
+         double var16 = var10 * var10 + var12 * var12 + var14 * var14;
+         if (var16 < var7) {
+            var7 = var16;
+         }
+      }
+
+      return Math.sqrt(var7);
+   }
+
+   private void remember(double var1, double var3, double var5) {
+      this.historyX[this.historyIndex] = var1;
+      this.historyY[this.historyIndex] = var3;
+      this.historyZ[this.historyIndex] = var5;
+      this.historyIndex = (this.historyIndex + 1) % HISTORY;
+      if (this.historyCount < HISTORY) {
+         this.historyCount++;
+      }
    }
 
    private long a(long min, long max) {

@@ -49,6 +49,27 @@ public final class SprintReset {
       }
    }
 
+   /**
+    * Отпускание спринта под крит в воздухе (W-тап на падении).
+    * Обычный a(mode, bool) работает только на земле — там crit и так невозможен,
+    * а вот в падении спринт нужно снять самим флагом: это тот же ванильный путь,
+    * по которому уходит ClientCommandC2SPacket(STOP_SPRINTING).
+    *
+    * @return true, если спринт действительно отпущен
+    */
+   public static boolean d() {
+      if (mc.player == null || mc.options == null || !mc.player.isSprinting()) {
+         return false;
+      }
+
+      activeMode = "Legit";
+      // Клавиша остаётся отпущенной два тика: тик удара не должен застать нас спринтующими.
+      resetTicks = 2;
+      mc.options.sprintKey.setPressed(false);
+      mc.player.setSprinting(false);
+      return true;
+   }
+
    public static void a(EventMoveInput var0) {
       if (mc.player != null && a()) {
          if (activeMode.equals("W-Tap")) {

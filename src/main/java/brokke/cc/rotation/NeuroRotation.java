@@ -45,6 +45,10 @@ public class NeuroRotation extends RotationsSystem {
    private float fov = DEFAULT_FOV;
    /** 0 — чистый выход модели, 1 — максимально плавно (инерция + ограничение ускорения). */
    private float smooth = DEFAULT_SMOOTH;
+   /** Сколько тиков подряд ошибка больше 5°: модель залипла, помогает дожим. */
+   private int stuckTicks;
+   /** Гистерезис видимости: без него точка прицела прыгает между телом и головой каждый тик. */
+   private int hiddenTicks;
 
    public NeuroRotation() {
       this.a();
@@ -70,6 +74,8 @@ public class NeuroRotation extends RotationsSystem {
    /** Сброс состояния: смена цели, выключение режима, загрузка новых весов. */
    public void a() {
       this.trackedTarget = null;
+      this.stuckTicks = 0;
+      this.hiddenTicks = 0;
       this.aimAnchor.reset();
       this.lastUpdateNanos = 0L;
       this.driver = null;
@@ -159,22 +165,63 @@ public class NeuroRotation extends RotationsSystem {
       double var8 = Math.min(var5 / 1.0E9, MAX_DELTA_TIME);
       this.aimAnchor.update(var8, var3);
       Box var10 = this.c(var1);
-      Vec3d var11 = this.aimAnchor.point(var10, AuraChecks.a(mc, var1));
-      Vec3d var12 = var11.subtract(mc.player.getEyePos());
+      // Видимость с гистерезисом: цель то «видна», то нет из-за угла и блоков,
+      // и без сглаживания прицел каждый тик прыгал между телом и головой.
+      this.hiddenTicks = AuraChecks.a(mc, var1) ? Math.max(0, this.hiddenTicks - 2) : Math.min(20, this.hiddenTicks + 1);
+      Vec3d var11 = this.aimAnchor.point(var10, this.hiddenTicks < 3);
+
+      // Предикт: модель училась вести точку хитбокса, а не бегущего игрока. Добавляем
+      // упреждение по скорости цели, иначе на стрейфе прицел всегда отстаёт на полкорпуса
+      // и удары приходят с опозданием (а на пинге — мимо).
+      Vec3d var11b = var1.getVelocity();
+      double var11c = MathHelper.clamp(mc.player.getEyePos().distanceTo(var10.getCenter()) / 3.0, 0.35, 1.0);
+      Vec3d var11e = new Vec3d(var11b.x, var11b.y * 0.45, var11b.z).multiply(1.15 * var11c);
+      double var11f = var11e.length();
+      if (var11f > 0.45) {
+         var11e = var11e.multiply(0.45 / var11f);
+      }
+
+      Vec3d var11d = var11.add(var11e);
+
+      Vec3d var12 = var11d.subtract(mc.player.getEyePos());
       float var13 = (float) MathHelper.wrapDegrees(Math.toDegrees(Math.atan2(var12.z, var12.x)) - 90.0);
       float var14 = (float) (-Math.toDegrees(Math.atan2(var12.y, var12.horizontalLength())));
+
+      // Ошибка до цели ДО шага модели: по ней адаптируем плавность и «дожим».
+      float errYaw = MathHelper.wrapDegrees(var13 - this.requestedYaw);
+      float errPitch = var14 - this.requestedPitch;
+      float errLen = (float) Math.hypot(errYaw, errPitch);
+      this.stuckTicks = errLen > 5.0F ? Math.min(this.stuckTicks + 1, 200) : 0;
+
+      // Чем больше ошибка, тем меньше плавности: модель не «плывёт» за быстрой целью.
+      float adaptiveSmooth = this.smooth * (1.0F - 0.45F * MathHelper.clamp(errLen / 30.0F, 0.0F, 1.0F));
+
       float[] var15 = var7.tick(
          var13,
          var14,
          this.requestedYaw,
          this.requestedPitch,
-         mc.player.getEyePos().distanceTo(var11),
+         mc.player.getEyePos().distanceTo(var11d),
          this.scale(),
          FORCED_SAMPLES,
          this.freezeBonus(),
          !var1.isOnGround(),
-         this.smooth
+         adaptiveSmooth
       );
+
+      // Дожим: GRU иногда выдаёт почти нулевой шаг (freeze) или отстаёт на рывках цели.
+      // Добавляем ограниченную пропорциональную поправку — плавно, без снапов,
+      // и только когда ошибка реально большая.
+      if (errLen > 4.0F) {
+         float assist = MathHelper.clamp(errLen / 30.0F, 0.0F, 1.0F) * 0.3F;
+         if (this.stuckTicks > 8) {
+            assist = Math.max(assist, 0.5F);
+         }
+
+         var15[0] += MathHelper.clamp(errYaw * assist, -7.0F, 7.0F);
+         var15[1] += MathHelper.clamp(errPitch * assist, -5.0F, 5.0F);
+      }
+
       float var16 = MathHelper.wrapDegrees(this.requestedYaw + var15[0]);
       float var17 = MathHelper.clamp(this.requestedPitch + var15[1], -89.5F, 89.5F);
 

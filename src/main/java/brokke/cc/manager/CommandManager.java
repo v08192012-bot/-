@@ -1139,10 +1139,16 @@ public class CommandManager {
                d(NeuroTrainer.status());
                d(String.format(
                   Locale.ROOT,
-                  "§7Повороты (пакеты): макс §f%.1f° §7yaw, §f%.1f° §7pitch, крупных шагов: §f%d §7— §f.neuro reset",
+                  "§7Повороты (пакеты): макс §f%.1f° §7yaw, §f%.1f° §7pitch, крупных шагов: §f%d",
                   Aura.dbgMaxYawStep,
                   Aura.dbgMaxPitchStep,
                   Aura.dbgBigSteps
+               ));
+               d(String.format(
+                  Locale.ROOT,
+                  "§7Удары: §f%d §7из них без урона: §f%d §7(иммунитет/щит/дистанция) — §f.neuro reset",
+                  Aura.dbgAttacks(),
+                  Aura.dbgNoDamage()
                ));
                break;
             case "reset":
