@@ -171,7 +171,7 @@ public class ScoreboardHud {
    @EventHandler
    public void onHudRender(HudRenderEvent var1) {
       MinecraftClient var2 = MinecraftClient.getInstance();
-      if (enabled && var2.currentScreen != EventManager.clickGui) {
+      if (enabled && var2.currentScreen != EventManager.clickGui && var2.currentScreen != EventManager.csClickGui) {
          ScoreboardObjective var3 = a(var2);
          this.visible = var2.player != null && !var2.options.hudHidden && var3 != null;
          if (this.visible) {

@@ -16,6 +16,7 @@ import brokke.cc.nav.NavRecorder;
 import brokke.cc.nav.NavigationManager;
 import brokke.cc.nav.Waypoint;
 import brokke.cc.nav.WaypointStorage;
+import brokke.cc.render.Theme;
 import brokke.cc.ui.ClickGui;
 import brokke.cc.util.AnarchyUtil;
 import brokke.cc.util.KeyHelper;
@@ -168,6 +169,10 @@ public class CommandManager {
                    } else {
                       var11 = NavRecorder.d();
                    }
+                } else if (var8.equals("gui")) {
+                   if (var10 == 1) {
+                      var11 = List.of("cs", "panels");
+                   }
                 } else if (var8.equals("neuro")) {
                    if (var10 == 1) {
                       var11 = List.of("record", "stop", "status");
@@ -309,6 +314,9 @@ public class CommandManager {
                   case "irc":
                      ClickGui.m();
                      break;
+                  case "gui":
+                     n(var1);
+                     break;
                   case "mine":
                      i(var1);
                      break;
@@ -332,6 +340,25 @@ public class CommandManager {
          }
       } else {
          return false;
+      }
+   }
+
+   /** .gui cs | .gui panels — переключение вида клик-гуи. */
+   private static void n(String[] var0) {
+      if (var0.length < 2) {
+         d("§7Клик-гуи сейчас: §f" + Theme.getInstance().getGuiMode().getLabel() + "§7. Используй §f.gui cs§7 или §f.gui panels");
+         return;
+      }
+
+      String var1 = var0[1].toLowerCase(Locale.ROOT);
+      if (var1.equals("cs")) {
+         Theme.getInstance().a(Theme.b.CS);
+         d("§7Клик-гуи: §fCS§7 (RightShift)");
+      } else if (var1.equals("panels") || var1.equals("panel") || var1.equals("classic")) {
+         Theme.getInstance().a(Theme.b.PANELS);
+         d("§7Клик-гуи: §fПанели§7 (RightShift)");
+      } else {
+         d("§cИспользование: §f.gui cs §7| §f.gui panels");
       }
    }
 
@@ -1296,6 +1323,7 @@ public class CommandManager {
        COMMANDS.put("baritone", new CommandManager.b("управление навигацией Baritone", List.of("status", "record", "stop", "list", "goto", "mine")));
        COMMANDS.put("neuro", new CommandManager.b("нейросеть: бот, запись датасета, обучение GRU, модель", List.of("bot", "record", "stop", "train", "model", "status", "reset")));
       COMMANDS.put("irc", new CommandManager.b("открыть меню IRC и друзей", List.of()));
+      COMMANDS.put("gui", new CommandManager.b("режим клик-гуи: cs | panels", List.of("cs", "panels")));
    }
 
    public record a(int start, List<String> candidates) {

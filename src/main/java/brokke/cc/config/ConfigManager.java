@@ -403,6 +403,7 @@ public class ConfigManager {
       var20.add("pvpSellHud", serializePosition(PvPSell.k()));
       var20.add("notificationsHud", serializePosition(NotificationManager.getPosition()));
       var20.addProperty("guiStyle", Theme.getInstance().getGuiStyle().name());
+      var20.addProperty("guiMode", Theme.getInstance().getGuiMode().name());
       var20.addProperty("accent", Theme.getInstance().getAccent().getRGB());
       JsonArray var21 = new JsonArray();
 
@@ -563,6 +564,14 @@ public class ConfigManager {
                Theme.a var32 = Theme.a.valueOf(var1.get("guiStyle").getAsString());
                Theme.getInstance().a(var32);
             } catch (Exception var13) {
+            }
+         }
+
+         if (var1.has("guiMode")) {
+            try {
+               Theme.b var34 = Theme.b.valueOf(var1.get("guiMode").getAsString());
+               Theme.getInstance().a(var34);
+            } catch (Exception var11) {
             }
          }
 

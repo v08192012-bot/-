@@ -10,6 +10,8 @@ public final class Theme {
    private Color accent = new Color(78, 186, 142);
    private Color background = new Color(0, 0, 0);
    private Theme.a guiStyle = Theme.a.BLUR;
+   /** Режим клик-гуи: классические панели или окно в стиле CS. */
+   private Theme.b guiMode = Theme.b.PANELS;
    private final List<Color> palette = new ArrayList<>(
       List.of(new Color(78, 186, 142), new Color(30, 136, 229), new Color(0, 230, 118), new Color(255, 193, 7), new Color(255, 61, 0), new Color(156, 39, 176))
    );
@@ -51,6 +53,17 @@ public final class Theme {
       }
    }
 
+   public Theme.b getGuiMode() {
+      return this.guiMode;
+   }
+
+   public void a(Theme.b var1) {
+      if (var1 != null && var1 != this.guiMode) {
+         this.guiMode = var1;
+         ConfigManager.onSettingChanged();
+      }
+   }
+
    public List<Color> getPalette() {
       return this.palette;
    }
@@ -85,6 +98,21 @@ public final class Theme {
       if (var1 != null && !var1.isEmpty()) {
          this.palette.clear();
          this.palette.addAll(var1);
+      }
+   }
+
+   public enum b {
+      PANELS("Панели"),
+      CS("CS");
+
+      private final String label;
+
+      b(String var1) {
+         this.label = var1;
+      }
+
+      public String getLabel() {
+         return this.label;
       }
    }
 

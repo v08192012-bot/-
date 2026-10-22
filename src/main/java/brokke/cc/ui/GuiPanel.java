@@ -45,6 +45,11 @@ public class GuiPanel {
    private static final int TEXT_COLOR = -1;
    private static final int TEXT_DIM_COLOR = -5260861;
    public final Category category;
+   /** Размеры панели: классическая гуи ставит 125x270, CS-гуи — размер контентной области. */
+   public float panelW = W;
+   public float panelH = H;
+   /** Заголовок панели (в CS-гуи может отличаться от имени категории, напр. Visuals). */
+   public String title;
    public final Animation open = new Animation();
    private final Animation scroll = new Animation();
    private float scrollTarget;
@@ -129,6 +134,7 @@ public class GuiPanel {
 
    public GuiPanel(Category var1) {
       this.category = var1;
+      this.title = var1.getName();
       this.open.setEasing(Easing.SPRING_SOFT);
       this.scroll.setEasing(Easing.SMOOTH_STEP);
    }
@@ -329,15 +335,15 @@ public class GuiPanel {
          }
 
          float var29 = this.a(var14);
-         float var30 = 270.0F;
+         float var30 = this.panelH;
          float var31 = var11 + 24.0F + 2.0F;
          float var32 = var30 - 24.0F - 6.0F;
          this.scrollTarget = Math.clamp(this.scrollTarget, Math.min(0.0F, var32 - var29), 0.0F);
          this.scroll.animate(this.scrollTarget, var4, 7.0F, var7);
-         HudConfig.a("panel", this.x, var11, 125.0F, var30, 8.0F, (int)(245.0F * var10) << 24);
+         HudConfig.a("panel", this.x, var11, this.panelW, var30, 8.0F, (int)(245.0F * var10) << 24);
          this.a(var1, var11, var10, var9);
          this.hitCount = 0;
-         Scissor.a(this.x - 1.0F, var31, this.x + 125.0F + 1.0F, var31 + var32);
+         Scissor.a(this.x - 1.0F, var31, this.x + this.panelW + 1.0F, var31 + var32);
          Msdf.b();
          float var33 = var31 + this.scroll.getValue();
 
@@ -355,7 +361,7 @@ public class GuiPanel {
          Scissor.a();
          if (var29 > var32) {
             float var35 = 2.0F;
-            float var36 = this.x + 125.0F - 3.5F;
+            float var36 = this.x + this.panelW - 3.5F;
             float var37 = var31 + 2.0F;
             float var23 = var32 - 4.0F;
             float var38 = var32 / var29;
@@ -370,7 +376,7 @@ public class GuiPanel {
    }
 
    private void a(DrawContext var1, float var2, float var3, int var4) {
-      String var5 = this.category.getName();
+      String var5 = this.title;
       float var6 = k();
       Msdf.b();
       Msdf.a(var1, MsdfManager.BOLD, var5, this.x + 10.0F, var2 + (24.0F - var6) / 2.0F, 9.0F, a(a(-1, var4, 0.25F), 255.0F * var3), false);
@@ -378,14 +384,14 @@ public class GuiPanel {
       float var8 = Msdf.a(MsdfManager.DICONS, var7, 9.0F);
       float var9 = l();
       Msdf.a(
-         var1, MsdfManager.DICONS, var7, this.x + 125.0F - 10.0F - var8, var2 + (24.0F - var9) / 2.0F + 0.5F, 9.0F, a(a(-1, var4, 0.35F), 255.0F * var3), false
+         var1, MsdfManager.DICONS, var7, this.x + this.panelW - 10.0F - var8, var2 + (24.0F - var9) / 2.0F + 0.5F, 9.0F, a(a(-1, var4, 0.35F), 255.0F * var3), false
       );
       Msdf.c();
    }
 
    private void a(DrawContext var1, Function var2, float var3, float var4, float var5, float var6, float var7, float var8, float var9, int var10, long var11) {
       float var13 = this.x + 6.0F;
-      float var14 = 113.0F;
+      float var14 = this.panelW - 12.0F;
       float var15 = Math.clamp(this.toggles.get(var2).getValue(), 0.0F, 1.0F);
       float var16 = Math.clamp(this.hovers.get(var2).getValue(), 0.0F, 1.0F);
       float var17 = Math.clamp(this.expands.get(var2).getValue(), 0.0F, 1.0F);
@@ -786,11 +792,11 @@ public class GuiPanel {
 
       List var5 = this.b();
       float var6 = this.a(var5);
-      float var7 = 270.0F;
+      float var7 = this.panelH;
       float var8 = this.y + 24.0F + 2.0F;
       float var9 = var7 - 24.0F - 6.0F;
       if (var6 > var9) {
-         float var11 = this.x + 125.0F - 3.5F;
+         float var11 = this.x + this.panelW - 3.5F;
          float var12 = var8 + 2.0F;
          float var13 = var9 - 4.0F;
          float var14 = var9 / var6;
@@ -798,7 +804,7 @@ public class GuiPanel {
          float var16;
          float var17 = (var16 = var6 - var9) > 0.0F ? Math.clamp(-this.scrollTarget / var16, 0.0F, 1.0F) : 0.0F;
          float var18 = var12 + (var13 - var15) * var17;
-         if (var1 >= var11 - 6.0F && var1 <= this.x + 125.0F + 6.0F && var2 >= var12 && var2 <= var12 + var13) {
+         if (var1 >= var11 - 6.0F && var1 <= this.x + this.panelW + 6.0F && var2 >= var12 && var2 <= var12 + var13) {
             if (var2 >= var18 && var2 <= var18 + var15) {
                this.draggingScroll = true;
                this.dragScrollStartY = var2;
@@ -960,9 +966,9 @@ public class GuiPanel {
       if (this.draggingScroll) {
          List var4 = this.b();
          float var5 = this.a(var4);
-         float var6 = 270.0F;
-         float var7 = 240.0F;
-         float var8 = 240.0F - 4.0F;
+         float var6 = this.panelH;
+         float var7 = this.panelH - 30.0F;
+         float var8 = var7 - 4.0F;
          float var9 = var7 / var5;
          float var10 = Math.max(16.0F, var8 * var9);
          float var11 = var5 - var7;
@@ -1042,8 +1048,8 @@ public class GuiPanel {
 
       List var3 = this.b();
       this.a(var3);
-      float var5 = 270.0F;
-      return var1 >= this.x && var1 <= this.x + 125.0F && var2 >= this.y && var2 <= this.y + var5;
+      float var5 = this.panelH;
+      return var1 >= this.x && var1 <= this.x + this.panelW && var2 >= this.y && var2 <= this.y + var5;
    }
 
    public Function b(float var1, float var2) {
