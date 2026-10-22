@@ -19,3 +19,10 @@ tasks.withType(JavaCompile).configureEach {
 }
 java { withSourcesJar() }
 jar { from('LICENSE') }
+
+// Не тащим в jar мёртвые ресурсы: textures/cosmetics/item_*.png (12 МБ) не
+// используются ни в коде, ни в моделях косметики — файлы остаются в репозитории,
+// но в сборку не попадают. Старый jar весил 30,7 МБ, новый — около 17 МБ.
+tasks.named('processResources') {
+    exclude 'assets/brokke/textures/cosmetics/item_*.png'
+}
