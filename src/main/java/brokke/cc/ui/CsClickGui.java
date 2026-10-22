@@ -143,11 +143,6 @@ public class CsClickGui extends Screen {
    }
 
    @Override
-   public boolean shouldPauseGame() {
-      return false;
-   }
-
-   @Override
    public boolean shouldCloseOnEsc() {
       return false;
    }
