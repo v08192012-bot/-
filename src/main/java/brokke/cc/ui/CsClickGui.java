@@ -141,6 +141,15 @@ public class CsClickGui extends Screen {
       MinecraftClient.getInstance().setScreen(var1);
    }
 
+   /**
+    * Ванильный фон экрана (Screen.renderBackground) применяет applyBlur — он размывает
+    * ВЕСЬ кадр, а не окно, из-за чего при открытии CS-гуи уезжал в блюр весь мир.
+    * Классическая гуи этот метод тоже глушит. Затемнение рисуем сами в renderContent.
+    */
+   @Override
+   public void renderBackground(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
+   }
+
    @Override
    public boolean shouldCloseOnEsc() {
       return false;
