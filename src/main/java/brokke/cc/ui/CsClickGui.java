@@ -2,7 +2,6 @@ package brokke.cc.ui;
 
 import brokke.cc.animation.Animation;
 import brokke.cc.animation.Easing;
-import brokke.cc.config.HudConfig;
 import brokke.cc.font.Msdf;
 import brokke.cc.font.MsdfManager;
 import brokke.cc.module.Category;
@@ -212,7 +211,8 @@ public class CsClickGui extends Screen {
 
    private void renderContent(DrawContext var1, int var2, int var3, float var4, float var5) {
       MinecraftClient var6 = MinecraftClient.getInstance();
-      int var7 = var6.world != null ? (int)(140.0F * var5) << 24 : -16118766;
+      // Затемнение мира — как у классической гуи (48/255), иначе экран выглядит «выключенным».
+      int var7 = var6.world != null ? (int)(56.0F * var5) << 24 : -16118766;
       var1.fill(0, 0, this.width, this.height, var7);
       if (var5 <= 0.001F) {
          return;
@@ -223,8 +223,11 @@ public class CsClickGui extends Screen {
       float var10 = var5;
       int var12 = Theme.getInstance().getAccent().getRGB();
 
-      // Окно целиком: блюр/фон + скруглённые углы.
-      HudConfig.a("cs_gui", this.winX, this.winY, this.winW, this.winH, 10.0F, (int)(245.0F * var10) << 24);
+      // Окно целиком. Рисуем обычным прямоугольником, без HudConfig/блюр-пасса: блюр
+      // снимает кадр уже вместе с нарисованной гуи и размывает её саму (и тянет на
+      // весь экран), поэтому фон гуи здесь всегда чистый.
+      RenderUtil.a(this.winX, this.winY, this.winW, this.winH, 10.0F, a(0x14161A, 242.0F * var10));
+      RenderUtil.a(this.winX, this.winY, this.winW, this.winH, 10.0F, 0.7F, a(-1, 26.0F * var10));
       // Сайдбар темнее контента, между ними тонкая линия.
       RenderUtil.a(this.winX, this.winY, SIDE_W, this.winH, 10.0F, a(-1, 8.0F * var10));
       RenderUtil.a(this.winX + SIDE_W, this.winY, this.winW - SIDE_W, this.winH, 10.0F, a(0, 46.0F * var10));
