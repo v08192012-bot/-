@@ -158,10 +158,19 @@ jobs:
               exit 1
             fi
           done
-          if unzip -p "$JAR" fabric.mod.json | grep -q 'shelka.aim.ShelkaAim'; then
+          unzip -p "$JAR" fabric.mod.json > /tmp/aim-mod.json
+          if grep -q 'shelka.aim.ShelkaAim' /tmp/aim-mod.json; then
             echo "::notice::OK: fabric.mod.json entrypoint"
           else
             echo "::error::fabric.mod.json has no shelka.aim.ShelkaAim entrypoint"
+            exit 1
+          fi
+          # ${version} должен быть подставлен processResources, иначе лоадер не загрузит мод
+          if grep -q '"version": "1.0.0"' /tmp/aim-mod.json && ! grep -q '\${version}' /tmp/aim-mod.json; then
+            echo "::notice::OK: version expanded in fabric.mod.json"
+          else
+            echo "::error::fabric.mod.json version was not expanded"
+            cat /tmp/aim-mod.json
             exit 1
           fi
 
