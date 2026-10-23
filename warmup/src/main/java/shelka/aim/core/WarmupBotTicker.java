@@ -80,14 +80,6 @@ public final class WarmupBotTicker {
             continue;
          }
 
-         if (!bot.isNoGravity()) {
-            bot.setNoGravity(true);
-            bot.baseY = bot.getY();
-            bot.strafeTicks = 0;
-            bot.distTicks = 0;
-            bot.jumpTicks = 0;
-         }
-
          step(bot);
       }
    }
