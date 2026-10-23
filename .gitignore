@@ -1,0 +1,5 @@
+warmup/.gradle/
+warmup/build/
+warmup/run/
+.gradle/
+run/

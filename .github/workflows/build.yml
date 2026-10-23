@@ -108,3 +108,96 @@ jobs:
             | tail -n 40 \
             | cut -c1-900 \
             | while IFS= read -r line; do echo "::error::${line}"; done
+
+  warmup:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: warmup
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Prepare Gradle
+        run: |
+          # путь к JDK в gradle.properties прописан под Windows — на CI убираем
+          sed -i '/org.gradle.java.home/d' gradle.properties
+          chmod +x gradlew
+          java -version
+          ./gradlew --version
+
+      - name: Build
+        run: |
+          set -o pipefail
+          ./gradlew build --no-daemon --stacktrace --console=plain 2>&1 | tee gradle.log
+
+      - name: Collect jar
+        if: success()
+        run: |
+          mkdir -p dist
+          cp build/libs/*.jar dist/
+          rm -f dist/*-sources.jar
+          ls -lh dist
+
+      - name: Verify jar
+        run: |
+          JAR=$(ls dist/*.jar | head -n1)
+          echo "JAR: $JAR"
+          for entry in shelka/aim/ShelkaAim.class shelka/aim/core/WarmupBotEntity.class shelka/aim/core/WarmupBotTicker.class shelka/aim/mixins/network/ClientPlayerInteractionManagerMixin.class shelka_aim.mixins.json; do
+            if unzip -l "$JAR" | grep -q "$entry"; then
+              echo "::notice::OK: $entry present"
+            else
+              echo "::error::MISSING: $entry"
+              exit 1
+            fi
+          done
+          if unzip -p "$JAR" fabric.mod.json | grep -q 'shelka.aim.ShelkaAim'; then
+            echo "::notice::OK: fabric.mod.json entrypoint"
+          else
+            echo "::error::fabric.mod.json has no shelka.aim.ShelkaAim entrypoint"
+            exit 1
+          fi
+
+      - name: Upload artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shelka-aim-jar
+          path: warmup/dist/*.jar
+          if-no-files-found: error
+
+      - name: Publish release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: shelka-aim-latest
+          name: Shelka Aim — latest build
+          body: |
+            Отдельный мод для разминки аима. Коммит ${{ github.sha }}.
+
+            Установка: положить `shelka-aim-*.jar` в папку `mods` (Fabric 1.21.11 + Fabric API).
+
+            Команды: `.bot spawn [ник]`, `.bot remove`, `.bot clear`, `.bot move [on|off]`, `.bot speed <0.05-5.0>`.
+          files: warmup/dist/*.jar
+          fail_on_unmatched_files: true
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          echo "=== tail of gradle.log ==="
+          tail -n 150 gradle.log 2>/dev/null || true
+          echo "=== annotations ==="
+          grep -nE "FAILURE:|What went wrong|Could not (resolve|download|find|create|copy)|error:|Caused by:|> Could not|Execution failed" gradle.log 2>/dev/null \
+            | tail -n 40 \
+            | cut -c1-900 \
+            | while IFS= read -r line; do echo "::error::${line}"; done
