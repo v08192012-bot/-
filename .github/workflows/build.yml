@@ -195,7 +195,7 @@ jobs:
             exit 1
           fi
           # ${version} должен быть подставлен processResources, иначе лоадер не загрузит мод
-          if grep -q '"version": "1.0.0"' /tmp/aim-mod.json && ! grep -q '\${version}' /tmp/aim-mod.json; then
+          if ! grep -q '\${version}' /tmp/aim-mod.json; then
             echo "::notice::OK: version expanded in fabric.mod.json"
           else
             echo "::error::fabric.mod.json version was not expanded"
