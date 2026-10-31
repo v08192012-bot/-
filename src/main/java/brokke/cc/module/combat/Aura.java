@@ -30,6 +30,7 @@ import brokke.cc.rotation.RotationUtils;
 import brokke.cc.rotation.RotationsSystem;
 import brokke.cc.rotation.SkyTimeRotation;
 import brokke.cc.rotation.SlothRotation;
+import brokke.cc.rotation.SpookyNewRotation;
 import brokke.cc.rotation.SpookyTimeRotation;
 import brokke.cc.rotation.TestRotation;
 import brokke.cc.rotation.WhiteRiseRotation;
@@ -90,7 +91,7 @@ import net.minecraft.world.RaycastContext.ShapeType;
 public class Aura extends Function {
    public static Aura INSTANCE;
    public final ModeSetting rotationType = new ModeSetting(
-      "Ротация", "Legit", new String[]{"Legit", "ReallyWorld", "SkyTime", "Нейро", "SpookyTime"}
+      "Ротация", "Legit", new String[]{"Legit", "ReallyWorld", "SkyTime", "Нейро", "SpookyTime", "SpookyNew"}
    );
    private final ListSetting targets = new ListSetting(
       "Таргеты", new BooleanSetting("Игроки", true), new BooleanSetting("Голые", true), new BooleanSetting("Мирные", false), new BooleanSetting("Мобы", true)
@@ -131,6 +132,9 @@ public class Aura extends Function {
       .showWhen(() -> this.rotationType.isSelected("SpookyTime"));
    private final BooleanSetting spookyMicro = new BooleanSetting("Микродрожь", true)
       .showWhen(() -> this.rotationType.isSelected("SpookyTime"));
+   /** SpookyNew: множитель амплитуды команды нейросети (100% = ровно поведение модели). */
+   private final FloatSetting spookyNewSpeed = new FloatSetting("Скорость SpookyNew", 100.0F, 50.0F, 200.0F, 5.0F)
+      .showWhen(() -> this.rotationType.isSelected("SpookyNew"));
    private LivingEntity target;
    Vec2f currentRotations = new Vec2f(0.0F, 0.0F);
    Vec2f targetRotations = new Vec2f(0.0F, 0.0F);
@@ -147,11 +151,13 @@ public class Aura extends Function {
    private final SkyTimeRotation skyTimeRotation = new SkyTimeRotation();
    private final NeuroRotation neuroRotation = new NeuroRotation();
    private final SpookyTimeRotation spookyTimeRotation = new SpookyTimeRotation();
+   private final SpookyNewRotation spookyNewRotation = new SpookyNewRotation();
    private boolean funtimeModeActive = false;
    private boolean slothModeActive = false;
    private boolean skyTimeModeActive = false;
    private boolean neuroModeActive = false;
    private boolean spookyTimeModeActive = false;
+   private boolean spookyNewModeActive = false;
    private boolean holyWorldModeActive = false;
    private float lastServerYaw;
    private float lastServerPitch;
@@ -724,6 +730,10 @@ public class Aura extends Function {
             this.AA();
          }
 
+         if (!this.rotationType.isSelected("SpookyNew")) {
+            this.AB();
+         }
+
          if (!this.S()) {
             this.W();
          }
@@ -822,6 +832,15 @@ public class Aura extends Function {
             this.spookyTimeRotation.setMicro(this.spookyMicro.isEnabled());
             this.spookyTimeRotation.setVisibleAim(clientLook.isEnabled());
             var1 = this.spookyTimeRotation;
+         } else if (this.rotationType.isSelected("SpookyNew")) {
+            if (!this.spookyNewModeActive) {
+               this.spookyNewRotation.a();
+               this.spookyNewModeActive = true;
+            }
+
+            this.spookyNewRotation.setSpeed(this.spookyNewSpeed.getFloatValue());
+            this.spookyNewRotation.setVisibleAim(clientLook.isEnabled());
+            var1 = this.spookyNewRotation;
          } else if (this.rotationType.isSelected("SkyTime")) {
             if (!this.skyTimeModeActive) {
                this.skyTimeRotation.a();
@@ -1592,6 +1611,13 @@ public class Aura extends Function {
       }
    }
 
+   private void AB() {
+      if (this.spookyNewModeActive) {
+         this.spookyNewModeActive = false;
+         this.spookyNewRotation.a();
+      }
+   }
+
    private boolean S() {
       return this.rotationType.isSelected("HolyWorld") || this.rotationType.isSelected("Holy2");
    }
@@ -1717,6 +1743,8 @@ public class Aura extends Function {
       this.legitRotation.a();
       this.reallyWorldRotation.a();
       this.aimAssistRotation.b();
+      this.spookyNewRotation.a();
+      this.spookyNewModeActive = false;
       this.lastDataTarget = null;
       this.ticksToAttack = 0;
       this.attackDelayTicks = 0;
@@ -1759,6 +1787,8 @@ public class Aura extends Function {
       this.legitRotation.a();
       this.reallyWorldRotation.a();
       this.aimAssistRotation.b();
+      this.spookyNewRotation.a();
+      this.spookyNewModeActive = false;
       this.lastDataTarget = null;
       this.ticksToAttack = 0;
       this.attackDelayTicks = 0;

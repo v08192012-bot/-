@@ -38,6 +38,7 @@ import brokke.cc.render.GuiBatch;
 import brokke.cc.render.OutlinePipeline;
 import brokke.cc.render.RectPipeline;
 import brokke.cc.render.TexturePipeline;
+import brokke.cc.rotation.SpookyNewRotation;
 import brokke.cc.system.events.EventBus;
 import brokke.cc.system.events.EventManager;
 import brokke.cc.util.SwapHelper;
@@ -88,6 +89,8 @@ public class Brokke implements ClientModInitializer {
       EventBus.register(new EventManager());
       EventBus.register(AutoBuyEngine.INSTANCE);
       EventBus.register(NeuroRecorder.INSTANCE);
+      // Модель SpookyNew (7 МБ весов) греем в фоне, чтобы первый удар не подвисал.
+      SpookyNewRotation.preload();
       ClientLifecycleEvents.CLIENT_STOPPING.register((ClientStopping)var0 -> {
          ConfigManager.saveDefault();
          AutoBuyConfig.g();

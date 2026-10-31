@@ -32,6 +32,27 @@ jobs:
           java -version
           ./gradlew --version
 
+      - name: Self-check SpookyNew model
+        run: |
+          # 1) веса в jar обязаны быть теми же, что в эталоне (gzip — только упаковка)
+          MODEL=src/main/resources/assets/brokke/rotation/spooky_motor.bin.gz
+          SUM=$(gzip -dc "$MODEL" | sha256sum | cut -d' ' -f1)
+          echo "sha256 распакованной модели: $SUM"
+          if [ "$SUM" != "57a182586519a4bb85dbced1b342b254053518de2525d2f319f43ef2105230c9" ]; then
+            echo "::error::motor.bin не совпал с эталоном"
+            exit 1
+          fi
+          # 2) forward-pass обязан совпасть с эталонными тиками (допуск 1e-9).
+          #    Эти классы не зависят от Minecraft, поэтому компилируются обычным javac.
+          mkdir -p /tmp/spooky
+          javac -d /tmp/spooky \
+            src/main/java/brokke/cc/rotation/spooky/SpookyMath.java \
+            src/main/java/brokke/cc/rotation/spooky/AimRotation.java \
+            src/main/java/brokke/cc/rotation/spooky/SpookyModel.java \
+            src/main/java/brokke/cc/rotation/spooky/SpookyRotation.java \
+            src/main/java/brokke/cc/rotation/spooky/SpookySelfCheck.java
+          java -cp /tmp/spooky brokke.cc.rotation.spooky.SpookySelfCheck "$MODEL"
+
       - name: Build
         run: |
           set -o pipefail
@@ -49,7 +70,7 @@ jobs:
         run: |
           JAR=$(ls dist/*.jar | head -n1)
           echo "JAR: $JAR"
-          for cls in brokke/cc/module/render/Atmosphere.class brokke/cc/render/SnowRenderer.class brokke/cc/mixins/render/BlockColorsMixin.class assets/brokke/textures/snow/frost.png; do
+          for cls in brokke/cc/module/render/Atmosphere.class brokke/cc/render/SnowRenderer.class brokke/cc/mixins/render/BlockColorsMixin.class brokke/cc/rotation/SpookyNewRotation.class brokke/cc/rotation/spooky/SpookyModel.class brokke/cc/rotation/spooky/SpookyRotation.class assets/brokke/textures/snow/frost.png assets/brokke/rotation/spooky_motor.bin.gz; do
             if unzip -l "$JAR" | grep -q "$cls"; then
               echo "::notice::OK: $cls present"
             else
@@ -68,6 +89,14 @@ jobs:
             echo "::notice::OK: SnowRenderer places real vanilla snow layer blocks (renderBlockAsEntity + SnowBlock.LAYERS)"
           else
             echo "::error::SnowRenderer does not render the vanilla snow layer block"
+            exit 1
+          fi
+          # модель внутри jar тоже обязана распаковываться в эталонные веса
+          JARSUM=$(unzip -p "$JAR" assets/brokke/rotation/spooky_motor.bin.gz | gzip -dc | sha256sum | cut -d' ' -f1)
+          if [ "$JARSUM" = "57a182586519a4bb85dbced1b342b254053518de2525d2f319f43ef2105230c9" ]; then
+            echo "::notice::OK: spooky_motor.bin.gz в jar распаковывается в эталонные веса"
+          else
+            echo "::error::модель внутри jar побилась (sha256 $JARSUM)"
             exit 1
           fi
           REFS=$(unzip -p "$JAR" brokke/cc/mixins/render/BlockColorsMixin.class | strings | grep -c 'method_' || true)
