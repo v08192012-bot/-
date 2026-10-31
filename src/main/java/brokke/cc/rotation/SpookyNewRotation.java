@@ -28,6 +28,12 @@ import net.minecraft.util.math.Vec3d;
 public class SpookyNewRotation extends RotationsSystem {
    private static final int ROTATION_PRIORITY = 3;
    private static final String MODEL_RESOURCE = "/assets/brokke/rotation/spooky_motor.bin.gz";
+   /** Максимальная дистанция удара, на которой проверяем попадание луча в бокс. */
+   private static final double REACH = 3.0;
+   /** Сколько градусов за тик максимум добавляем, чтобы вернуть луч в хитбокс. */
+   private static final double MAX_HITBOX_CORRECTION = 2.4;
+   /** Если промах больше этого — не поправляем, пусть доводит модель. */
+   private static final double MAX_HITBOX_PULL = 9.0;
    private static final Object LOAD_LOCK = new Object();
 
    private static volatile SpookyModel sharedModel;
@@ -182,6 +188,16 @@ public class SpookyNewRotation extends RotationsSystem {
          return;
       }
 
+      // Модель «по-человечески» замирает, не доведя прицел до центра: голова pause
+      // гасит шаг, и луч легко остаётся в 5-7° от хитбокса. Удар в таком положении
+      // сервер не засчитает (а античит прочитает как удар без взгляда на цель),
+      // поэтому, если луч мимо бокса, за тик подтягиваем прицел внутрь — на пару
+      // градусов, ровно как поправка живой рукой. Дальше ведёт уже модель.
+      AimRotation fixed = this.keepOnHitbox(next, box, eyes);
+      if (fixed != null) {
+         next = fixed;
+      }
+
       float deltaYaw = MathHelper.wrapDegrees(next.yaw - current.yaw);
       float deltaPitch = MathHelper.clamp(next.pitch - current.pitch, -90.0F, 90.0F);
 
@@ -199,6 +215,46 @@ public class SpookyNewRotation extends RotationsSystem {
          ROTATION_PRIORITY,
          this.visibleAim
       );
+   }
+
+   /**
+    * Если луч по ротации {@code next} не попадает в хитбокс — вернуть ротацию,
+    * подтянутую к ближайшей точке внутри бокса. За тик не больше
+    * {@link #MAX_HITBOX_CORRECTION} градусов; если промах больше
+    * {@link #MAX_HITBOX_PULL}, не трогаем: пусть доводит сама модель.
+    */
+   private AimRotation keepOnHitbox(AimRotation next, Box box, Vec3d eyes) {
+      Box probe = box.expand(0.05);
+      Vec3d dir = Vec3d.fromPolar(next.pitch, next.yaw).normalize();
+      if (probe.contains(eyes) || probe.raycast(eyes, eyes.add(dir.multiply(REACH + 0.25))).isPresent()) {
+         return next;
+      }
+
+      Vec3d center = box.getCenter();
+      double target = Math.max(0.6, eyes.distanceTo(center));
+      Vec3d onRay = eyes.add(dir.multiply(target));
+      double inset = 0.07;
+      double x = MathHelper.clamp(onRay.x, box.minX + inset, Math.max(box.minX + inset, box.maxX - inset));
+      double y = MathHelper.clamp(onRay.y, box.minY + inset, Math.max(box.minY + inset, box.maxY - inset));
+      double z = MathHelper.clamp(onRay.z, box.minZ + inset, Math.max(box.minZ + inset, box.maxZ - inset));
+      double dx = x - eyes.x;
+      double dy = y - eyes.y;
+      double dz = z - eyes.z;
+      if (dx * dx + dy * dy + dz * dz < 1.0E-6) {
+         return next;
+      }
+
+      float wantYaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+      float wantPitch = (float)(-Math.toDegrees(Math.atan2(dy, Math.hypot(dx, dz))));
+      float dYaw = MathHelper.wrapDegrees(wantYaw - next.yaw);
+      float dPitch = MathHelper.clamp(wantPitch - next.pitch, -90.0F, 90.0F);
+      double miss = Math.hypot(dYaw, dPitch);
+      if (!(miss > 1.0E-4) || miss > MAX_HITBOX_PULL) {
+         return next;
+      }
+
+      double part = Math.min(miss, MAX_HITBOX_CORRECTION) / miss;
+      return new AimRotation((float)(next.yaw + dYaw * part), (float)(next.pitch + dPitch * part));
    }
 
    private void warnOnce() {

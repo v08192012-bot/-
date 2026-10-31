@@ -1173,9 +1173,14 @@ public class CommandManager {
                ));
                d(String.format(
                   Locale.ROOT,
-                  "§7Удары: §f%d §7из них без урона: §f%d §7(иммунитет/щит/дистанция) — §f.neuro reset",
+                  "§7Удары: §f%d §7из них без урона: §f%d §7(иммунитет/щит/дистанция)",
                   Aura.dbgAttacks(),
                   Aura.dbgNoDamage()
+               ));
+               d(String.format(
+                  Locale.ROOT,
+                  "§7Отложено ударов из-за наводки: §f%d §7(серверный луч не в хитбоксе) — §f.neuro reset",
+                  Aura.dbgLookBlocked()
                ));
                break;
             case "reset":

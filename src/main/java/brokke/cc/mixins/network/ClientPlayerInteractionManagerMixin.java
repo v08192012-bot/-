@@ -30,6 +30,10 @@ public class ClientPlayerInteractionManagerMixin {
          var3.cancel();
       } else if (var2 instanceof FakePlayerEntity var5) {
          var5.a(var1);
+         // Фейковый игрок живёт только на клиенте, на сервере его нет. Пакет атаки по
+         // нему — «удар по несуществующей сущности» (BadPackets), и античит флагает
+         // каждый такой удар. Гасим пакет, эффекты попадания уже применены локально.
+         var3.cancel();
       }
    }
 

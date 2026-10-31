@@ -11,10 +11,14 @@ import shelka.aim.core.WarmupBotEntity;
 
 @Mixin(ClientPlayerInteractionManager.class)
 public class ClientPlayerInteractionManagerMixin {
-   @Inject(method = "attackEntity(Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/entity/Entity;)V", at = @At("HEAD"))
+   @Inject(method = "attackEntity(Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/entity/Entity;)V", at = @At("HEAD"), cancellable = true)
    private void shelkaAimOnAttackEntity(PlayerEntity attacker, Entity target, CallbackInfo ci) {
       if (target instanceof WarmupBotEntity bot) {
          bot.onHit(attacker);
+         // Бот существует только на клиенте: на сервере его entity id нет. Если пакет
+         // атаки уйдёт, сервер получит удар по несуществующей сущности — это BadPackets,
+         // то есть флаг на КАЖДОМ ударе по боту. Гасим пакет: удар остаётся локальным.
+         ci.cancel();
       }
    }
 }

@@ -520,6 +520,8 @@ public class Aura extends Function {
    public static float dbgMaxYawStep;
    public static float dbgMaxPitchStep;
    public static int dbgBigSteps;
+   /** Сколько раз удар отменялся, потому что серверная наводка не лежала в хитбоксе. */
+   public static int dbgLookBlocked;
 
    /**
     * Через 2 тика после удара проверяем, вырос ли hurtTime у цели: если нет, сервер
@@ -555,12 +557,17 @@ public class Aura extends Function {
       return dbgNoDamage;
    }
 
+   public static int dbgLookBlocked() {
+      return dbgLookBlocked;
+   }
+
    public static void dbgReset() {
       dbgMaxYawStep = 0.0F;
       dbgMaxPitchStep = 0.0F;
       dbgBigSteps = 0;
       dbgAttacks = 0;
       dbgNoDamage = 0;
+      dbgLookBlocked = 0;
    }
 
    @EventHandler(priority = EventPriority.LOWEST)
@@ -1129,7 +1136,7 @@ public class Aura extends Function {
       this.attackTrackedTarget = this.target;
       this.attackTargetHurtAtSend = this.target.hurtTime;
       dbgAttacks++;
-      this.attackJitter = ThreadLocalRandom.current().nextFloat() * 0.03F;
+      this.attackJitter = 0.015F + ThreadLocalRandom.current().nextFloat() * 0.075F;
       Hand var1 = null;
       if (this.unpressShield.isEnabled()) {
          var1 = this.M();
@@ -1278,9 +1285,10 @@ public class Aura extends Function {
 
          if (!(var1 instanceof IronGolemEntity) && !(var1 instanceof BatEntity)) {
             if (var1 instanceof FakePlayerEntity) {
-               if (!this.targets.isSelected("Игроки")) {
-                  return false;
-               }
+               // Клиентская сущность: на сервере её не существует. Раньше аура могла
+               // взять её в цель и бить — пакеты атаки по несуществующему entity id
+               // флагались античитом. По боту бьют руками, а не аурой.
+               return false;
             } else if (var1 instanceof PlayerEntity var2) {
                if (!this.targets.isSelected("Игроки")) {
                   return false;
@@ -1388,12 +1396,17 @@ public class Aura extends Function {
    }
 
    /**
-    * Мягкая проверка наводки для режима «Нейро».
+    * Проверка «сервер увидит попадание по этой ротации».
     *
-    * Жёсткий рейкаст по текущей позиции промахивается, когда цель бежит или когда
-    * плавная наводка ещё догоняет кадр — из-за этого аура секундами «наводится,
-    * но не бьёт». Здесь считаем расстояние от луча до хитбокса: пока луч проходит
-    * в 0.4 блока от бокса, серверный луч тоже его заденет (бокс едет вместе с целью).
+    * Раньше здесь был мягкий допуск: луч считался попавшим, если проходил в 0.4 блока
+    * от бокса, расширенного на 0.3. На дистанции 3 блока это ~7°, и удар уходил, когда
+    * серверный луч в хитбокс НЕ попадает — античиты читают это как «удар без взгляда
+    * на цель» и флагают каждый удар. Теперь проверка та же, что делает сервер:
+    * настоящий рейкаст по хитбоксу из глаз по углам, которые уже улетели в пакете,
+    * плюс reach и линия видимости до точки попадания.
+    *
+    * Допуск 0.05 блока оставлен только на пинг/дрожание конечности моба — он не даёт
+    * промахнуться «мимо бокса».
     */
    private boolean p(float var1, float var2, LivingEntity var3, float var4) {
       if (mc.player == null || mc.world == null || var3 == null) {
@@ -1401,26 +1414,45 @@ public class Aura extends Function {
       }
 
       Vec3d var5 = mc.player.getEyePos();
-      Box var6 = var3.getBoundingBox().expand(var3.getTargetingMargin() + 0.3);
-      if (var6.squaredMagnitude(var5) > (var4 + 0.5) * (var4 + 0.5)) {
+      Box var6 = var3.getBoundingBox();
+      // reach: глаза -> ближайшая точка бокса (ванильная дистанция удара)
+      if (var6.squaredMagnitude(var5) > var4 * var4) {
+         return false;
+      }
+
+      // Глаза внутри хитбокса (вплотную) — попадание безусловное.
+      if (var6.expand(var3.getTargetingMargin()).contains(var5)) {
+         return true;
+      }
+
+      // Небольшой допуск на пинг: сервер проверяет луч по СВОЕЙ (устаревшей) позиции
+      // цели, поэтому у движущейся цели бокс слегка «расширяем» по её скорости —
+      // до 0.15 блока. Неподвижную цель это не трогает (она обязана быть под лучём).
+      double lagPad = Math.min(0.15, var3.getVelocity().horizontalLength() * 0.5);
+
+      Vec3d var7 = Vec3d.fromPolar(var2, var1).normalize();
+      Vec3d var8 = var5.add(var7.multiply(var4 + 0.25));
+      Optional var9 = var6.expand(0.05 + lagPad).raycast(var5, var8);
+      if (var9.isEmpty()) {
+         return false;
+      }
+
+      Vec3d var10 = (Vec3d)var9.get();
+      double var11 = var5.squaredDistanceTo(var10);
+      if (var11 > (var4 + 0.05) * (var4 + 0.05)) {
          return false;
       }
 
       if (!this.throughWalls.isEnabled()) {
-         Vec3d var7 = var6.getCenter();
-         BlockHitResult var8 = mc.world.raycast(new RaycastContext(var5, var7, ShapeType.COLLIDER, FluidHandling.NONE, mc.player));
-         if (var8 != null && var8.getType() != Type.MISS && var5.squaredDistanceTo(var8.getPos()) < var5.squaredDistanceTo(var7) - 1.0E-4) {
+         // Между глазом и точкой попадания не должно быть блока: сервер свой луч
+         // тоже рейкастит по коллайдерам и «сквозь стену» считает BadPackets.
+         BlockHitResult var12 = mc.world.raycast(new RaycastContext(var5, var10, ShapeType.COLLIDER, FluidHandling.NONE, mc.player));
+         if (var12 != null && var12.getType() != Type.MISS && var5.squaredDistanceTo(var12.getPos()) < var11 - 1.0E-4) {
             return false;
          }
       }
 
-      Vec3d var9 = Vec3d.fromPolar(var2, var1).normalize();
-      double var10 = MathHelper.clamp(var5.distanceTo(var6.getCenter()) + 0.6, 0.5, var4 + 0.6);
-      Vec3d var11 = var5.add(var9.multiply(var10));
-      double var12 = MathHelper.clamp(var11.x, var6.minX, var6.maxX) - var11.x;
-      double var13 = MathHelper.clamp(var11.y, var6.minY, var6.maxY) - var11.y;
-      double var14 = MathHelper.clamp(var11.z, var6.minZ, var6.maxZ) - var11.z;
-      return var12 * var12 + var13 * var13 + var14 * var14 <= 0.16;
+      return true;
    }
 
    public boolean b(float var1, float var2, LivingEntity var3, float var4) {
@@ -1462,11 +1494,14 @@ public class Aura extends Function {
    private boolean P() {
       if (this.target != null && mc.player != null) {
          // Пакет атаки уходит из тика РАНЬШЕ пакета поворота этого же тика, поэтому
-         // сервер проверяет попадание по нашей ПРОШЛОЙ наводке. Если она ещё не лежит
-         // в хитбоксе — удар уходит «в молоко»: пакет есть, урона нет. Ждём тик, пока
-         // наводка (и reach-чек сервера) не сойдётся. Раньше это было только в «Нейро»,
-         // из-за чего в остальных режимах удары иногда не регали.
-         if (this.hasServerRotation && !this.p(this.lastServerYaw, this.lastServerPitch, this.target, this.range.getFloatValue())) {
+         // сервер проверяет попадание по нашей ПРОШЛОЙ наводке. Проверяем ровно её —
+         // и ВСЕГДА: раньше при отсутствии серверной ротации проверка пропускалась,
+         // и первые удары уходили вообще без контроля наводки.
+         float gateYaw = this.hasServerRotation ? this.lastServerYaw : mc.player.getYaw();
+         float gatePitch = this.hasServerRotation ? this.lastServerPitch : mc.player.getPitch();
+         float gateReach = Math.min(this.range.getFloatValue(), 3.0F);
+         if (!this.p(gateYaw, gatePitch, this.target, gateReach)) {
+            dbgLookBlocked++;
             return false;
          }
 
