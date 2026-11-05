@@ -1179,8 +1179,9 @@ public class CommandManager {
                ));
                d(String.format(
                   Locale.ROOT,
-                  "§7Отложено ударов из-за наводки: §f%d §7(серверный луч не в хитбоксе) — §f.neuro reset",
-                  Aura.dbgLookBlocked()
+                  "§7Отложено ударов: наводка мимо хитбокса §f%d§7, удар в момент переводки §f%d §7— §f.neuro reset",
+                  Aura.dbgLookBlocked(),
+                  Aura.dbgTurningBlocked()
                ));
                break;
             case "reset":

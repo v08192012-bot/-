@@ -528,6 +528,11 @@ public class Aura extends Function {
    public static int dbgBigSteps;
    /** Сколько раз удар отменялся, потому что серверная наводка не лежала в хитбоксе. */
    public static int dbgLookBlocked;
+   /** Удар в момент крупной переводки отложен: шаг последнего пакета ротации. */
+   public static int dbgTurningBlocked;
+   /** Дельта ротации в последнем отправленном пакете движения. */
+   private float lastPacketYawStep;
+   private float lastPacketPitchStep;
 
    /**
     * Через 2 тика после удара проверяем, вырос ли hurtTime у цели: если нет, сервер
@@ -567,6 +572,10 @@ public class Aura extends Function {
       return dbgLookBlocked;
    }
 
+   public static int dbgTurningBlocked() {
+      return dbgTurningBlocked;
+   }
+
    public static void dbgReset() {
       dbgMaxYawStep = 0.0F;
       dbgMaxPitchStep = 0.0F;
@@ -574,6 +583,7 @@ public class Aura extends Function {
       dbgAttacks = 0;
       dbgNoDamage = 0;
       dbgLookBlocked = 0;
+      dbgTurningBlocked = 0;
    }
 
    @EventHandler(priority = EventPriority.LOWEST)
@@ -595,6 +605,12 @@ public class Aura extends Function {
             if (dYaw > 20.0F || dPitch > 15.0F) {
                dbgBigSteps++;
             }
+
+            this.lastPacketYawStep = dYaw;
+            this.lastPacketPitchStep = dPitch;
+         } else {
+            this.lastPacketYawStep = 0.0F;
+            this.lastPacketPitchStep = 0.0F;
          }
 
          this.lastServerYaw = newYaw;
@@ -1525,6 +1541,13 @@ public class Aura extends Function {
          float gateReach = Math.min(this.range.getFloatValue(), 3.0F);
          if (!this.p(gateYaw, gatePitch, this.target, gateReach)) {
             dbgLookBlocked++;
+            return false;
+         }
+
+         // Удар посреди крупной переводки — отдельный признак для античитов: живой игрок
+         // кликает, когда прицел уже стоит. Ждём, пока шаг ротации упадёт ниже порога.
+         if (this.lastPacketYawStep > 10.0F || this.lastPacketPitchStep > 6.0F) {
+            dbgTurningBlocked++;
             return false;
          }
 
