@@ -31,6 +31,7 @@ import brokke.cc.rotation.RotationsSystem;
 import brokke.cc.rotation.SkyTimeRotation;
 import brokke.cc.rotation.SlothRotation;
 import brokke.cc.rotation.SpookyNewRotation;
+import brokke.cc.rotation.SpookyTestRotation;
 import brokke.cc.rotation.SpookyTimeRotation;
 import brokke.cc.rotation.TestRotation;
 import brokke.cc.rotation.WhiteRiseRotation;
@@ -91,7 +92,7 @@ import net.minecraft.world.RaycastContext.ShapeType;
 public class Aura extends Function {
    public static Aura INSTANCE;
    public final ModeSetting rotationType = new ModeSetting(
-      "Ротация", "Legit", new String[]{"Legit", "ReallyWorld", "SkyTime", "Нейро", "SpookyTime", "SpookyNew"}
+      "Ротация", "Legit", new String[]{"Legit", "ReallyWorld", "SkyTime", "Нейро", "SpookyTime", "SpookyNew", "SpookyTest"}
    );
    private final ListSetting targets = new ListSetting(
       "Таргеты", new BooleanSetting("Игроки", true), new BooleanSetting("Голые", true), new BooleanSetting("Мирные", false), new BooleanSetting("Мобы", true)
@@ -135,6 +136,9 @@ public class Aura extends Function {
    /** SpookyNew: множитель амплитуды команды нейросети (100% = ровно поведение модели). */
    private final FloatSetting spookyNewSpeed = new FloatSetting("Скорость SpookyNew", 100.0F, 50.0F, 200.0F, 5.0F)
       .showWhen(() -> this.rotationType.isSelected("SpookyNew"));
+   /** SpookyTest: масштаб шага и сглаживания (100% = параметры эталонной ротации). */
+   private final FloatSetting spookyTestSpeed = new FloatSetting("Скорость SpookyTest", 100.0F, 50.0F, 150.0F, 5.0F)
+      .showWhen(() -> this.rotationType.isSelected("SpookyTest"));
    private LivingEntity target;
    Vec2f currentRotations = new Vec2f(0.0F, 0.0F);
    Vec2f targetRotations = new Vec2f(0.0F, 0.0F);
@@ -152,12 +156,14 @@ public class Aura extends Function {
    private final NeuroRotation neuroRotation = new NeuroRotation();
    private final SpookyTimeRotation spookyTimeRotation = new SpookyTimeRotation();
    private final SpookyNewRotation spookyNewRotation = new SpookyNewRotation();
+   private final SpookyTestRotation spookyTestRotation = new SpookyTestRotation();
    private boolean funtimeModeActive = false;
    private boolean slothModeActive = false;
    private boolean skyTimeModeActive = false;
    private boolean neuroModeActive = false;
    private boolean spookyTimeModeActive = false;
    private boolean spookyNewModeActive = false;
+   private boolean spookyTestModeActive = false;
    private boolean holyWorldModeActive = false;
    private float lastServerYaw;
    private float lastServerPitch;
@@ -741,6 +747,10 @@ public class Aura extends Function {
             this.AB();
          }
 
+         if (!this.rotationType.isSelected("SpookyTest")) {
+            this.AC();
+         }
+
          if (!this.S()) {
             this.W();
          }
@@ -848,6 +858,15 @@ public class Aura extends Function {
             this.spookyNewRotation.setSpeed(this.spookyNewSpeed.getFloatValue());
             this.spookyNewRotation.setVisibleAim(clientLook.isEnabled());
             var1 = this.spookyNewRotation;
+         } else if (this.rotationType.isSelected("SpookyTest")) {
+            if (!this.spookyTestModeActive) {
+               this.spookyTestRotation.a();
+               this.spookyTestModeActive = true;
+            }
+
+            this.spookyTestRotation.setSpeed(this.spookyTestSpeed.getFloatValue());
+            this.spookyTestRotation.setVisibleAim(clientLook.isEnabled());
+            var1 = this.spookyTestRotation;
          } else if (this.rotationType.isSelected("SkyTime")) {
             if (!this.skyTimeModeActive) {
                this.skyTimeRotation.a();
@@ -1070,6 +1089,10 @@ public class Aura extends Function {
             this.hadTarget = false;
             if (this.rotationType.isSelected("AimAssist")) {
                this.returning = true;
+            } else if (this.rotationType.isSelected("SpookyTest")) {
+               // 25 мс удержания + 75 мс интерполяции к взгляду игрока: резкий сброс
+               // ротации на потерянной цели — заметный признак киллауры.
+               this.spookyTestRotation.beginReturn();
             } else {
                this.B();
             }
@@ -1653,6 +1676,13 @@ public class Aura extends Function {
       }
    }
 
+   private void AC() {
+      if (this.spookyTestModeActive) {
+         this.spookyTestModeActive = false;
+         this.spookyTestRotation.a();
+      }
+   }
+
    private boolean S() {
       return this.rotationType.isSelected("HolyWorld") || this.rotationType.isSelected("Holy2");
    }
@@ -1780,6 +1810,8 @@ public class Aura extends Function {
       this.aimAssistRotation.b();
       this.spookyNewRotation.a();
       this.spookyNewModeActive = false;
+      this.spookyTestRotation.a();
+      this.spookyTestModeActive = false;
       this.lastDataTarget = null;
       this.ticksToAttack = 0;
       this.attackDelayTicks = 0;
@@ -1824,6 +1856,8 @@ public class Aura extends Function {
       this.aimAssistRotation.b();
       this.spookyNewRotation.a();
       this.spookyNewModeActive = false;
+      this.spookyTestRotation.a();
+      this.spookyTestModeActive = false;
       this.lastDataTarget = null;
       this.ticksToAttack = 0;
       this.attackDelayTicks = 0;
