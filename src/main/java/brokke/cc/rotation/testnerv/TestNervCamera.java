@@ -226,7 +226,9 @@ public final class TestNervCamera {
       this.tickCounter++;
       Aura aura = Aura.INSTANCE;
 
-      if (mc.player == null || mc.world == null || aura == null || !aura.isActive() || !aura.rotationType.isSelected(NAME)) {
+      // Мёртвого игрока наводка не крутит: в Opus наводка на этот момент уже снята
+      // менеджером ротации, и камера не «оживает» посреди смерти.
+      if (mc.player == null || mc.world == null || mc.player.isDead() || aura == null || !aura.isActive() || !aura.rotationType.isSelected(NAME)) {
          this.reset();
          return;
       }
