@@ -104,7 +104,7 @@ public class Aura extends Function {
    private final FloatSetting range = new FloatSetting("Дистанция атаки", 3.0F, 0.0F, 6.0F, 0.05F);
    public final BooleanSetting smartCrit = new BooleanSetting("Умные криты", false);
    /** Сколько тиков аура может догонять окно крита, прежде чем ударить как есть. 0 — не ждать. */
-   private final FloatSetting critWait = new FloatSetting("Догонять крит, тиков", 6.0F, 0.0F, 15.0F, 1.0F)
+   private final FloatSetting critWait = new FloatSetting("Догонять крит, тиков", 8.0F, 0.0F, 15.0F, 1.0F)
       .showWhen(() -> this.critAttack.isEnabled() || this.smartCrit.isEnabled());
    public final BooleanSetting onlyCrits = new BooleanSetting("Только критами", false);
    /** Криты вместо сплэшей: прыжок заранее и ожидание окна крита на падении. */
