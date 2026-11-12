@@ -76,7 +76,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.item.MaceItem;
 import net.minecraft.item.ShieldItem;
-import net.minecraft.item.SwordItem;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
@@ -846,7 +845,7 @@ public class Aura extends Function {
          return false;
       }
 
-      if (!(mc.player.getMainHandStack().getItem() instanceof SwordItem)) {
+      if (!isSword(mc.player.getMainHandStack())) {
          return false;
       }
 
@@ -855,6 +854,23 @@ public class Aura extends Function {
       }
 
       return this.canSprintAgain();
+   }
+
+   /**
+    * Сплэш (замах по площади) бывает только у меча: у топора, тризубца и булавы
+    * такого удара нет. В 1.21.11 класса SwordItem уже нет, поэтому проверяем предметы.
+    */
+   private static boolean isSword(ItemStack var0) {
+      if (var0 == null || var0.isEmpty()) {
+         return false;
+      }
+
+      return var0.isOf(Items.WOODEN_SWORD)
+         || var0.isOf(Items.STONE_SWORD)
+         || var0.isOf(Items.IRON_SWORD)
+         || var0.isOf(Items.GOLDEN_SWORD)
+         || var0.isOf(Items.DIAMOND_SWORD)
+         || var0.isOf(Items.NETHERITE_SWORD);
    }
 
    /** Спринт включится сам в ближайший тик: игрок идёт вперёд и спринт не заблокирован. */
