@@ -5,6 +5,7 @@ import brokke.cc.module.combat.AimAssist;
 import brokke.cc.module.combat.AimBot;
 import brokke.cc.module.movement.AirStuck;
 import brokke.cc.module.render.Ambience;
+import brokke.cc.module.render.AntiBlind;
 import brokke.cc.module.render.Atmosphere;
 import brokke.cc.module.combat.AntiBot;
 import brokke.cc.module.render.ArmorDurability;
@@ -143,6 +144,7 @@ public class FunctionManager {
        a(new ExstraOptimizer());
        a(new EntityBox());
       a(new NoRender());
+      a(new AntiBlind());
       a(new CustomFog());
       a(new WetWorld());
       a(new SeeInvisibles());

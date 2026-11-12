@@ -1,5 +1,6 @@
 package brokke.cc.mixins.render;
 
+import brokke.cc.module.render.AntiBlind;
 import brokke.cc.module.render.NoRender;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import net.minecraft.client.option.CloudRenderMode;
@@ -57,7 +58,7 @@ public class WorldRendererRemovalMixin {
 
    @Inject(method = "hasBlindnessOrDarkness(Lnet/minecraft/client/render/Camera;)Z", at = @At("HEAD"), cancellable = true)
    private void onHasBlindnessOrDarkness(Camera var1, CallbackInfoReturnable<Boolean> var2) {
-      if (NoRender.z()) {
+      if (NoRender.z() || AntiBlind.blindnessHidden() || AntiBlind.darknessHidden()) {
          var2.setReturnValue(false);
       }
    }
