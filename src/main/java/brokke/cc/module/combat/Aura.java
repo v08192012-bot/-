@@ -6,6 +6,7 @@ import brokke.cc.module.Function;
 import brokke.cc.module.FunctionManager;
 import brokke.cc.module.ModuleClass;
 import brokke.cc.module.NewFunction;
+import brokke.cc.module.movement.AutoSprint;
 import brokke.cc.module.player.AutoEat;
 import brokke.cc.module.player.NoRotate;
 import brokke.cc.core.AuraChecks;
@@ -75,6 +76,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.item.MaceItem;
 import net.minecraft.item.ShieldItem;
+import net.minecraft.item.SwordItem;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
@@ -102,10 +104,21 @@ public class Aura extends Function {
    private final ModeSetting priority = new ModeSetting("Приоритет", "Дистанция", new String[]{"Дистанция", "Здоровье", "Угол", "Никакой"});
    private final FloatSetting range = new FloatSetting("Дистанция атаки", 3.0F, 0.0F, 6.0F, 0.05F);
    public final BooleanSetting smartCrit = new BooleanSetting("Умные криты", false);
-   /** Сколько тиков аура может ждать крит, прежде чем ударить обычным ударом. 0 — не ждать. */
-   private final FloatSetting critWait = new FloatSetting("Ждать крит, тиков", 3.0F, 0.0F, 10.0F, 1.0F)
-      .showWhen(() -> this.smartCrit.isEnabled());
+   /** Сколько тиков аура может догонять окно крита, прежде чем ударить как есть. 0 — не ждать. */
+   private final FloatSetting critWait = new FloatSetting("Догонять крит, тиков", 6.0F, 0.0F, 15.0F, 1.0F)
+      .showWhen(() -> this.critAttack.isEnabled() || this.smartCrit.isEnabled());
    public final BooleanSetting onlyCrits = new BooleanSetting("Только критами", false);
+   /** Криты вместо сплэшей: прыжок заранее и ожидание окна крита на падении. */
+   public final BooleanSetting critAttack = new BooleanSetting("Криты вместо сплэшей", true);
+   private final BooleanSetting critJump = new BooleanSetting("Прыжок под крит", true)
+      .showWhen(() -> this.critAttack.isEnabled());
+   /** Удар на земле без спринта — это сплэш: ждём спринт до двух тиков, потом бьём. */
+   private final BooleanSetting noSweep = new BooleanSetting("Без сплэшей", true)
+      .showWhen(() -> this.critAttack.isEnabled());
+   /** Удержание цели: не переключаться на пробегающих мимо и переживать короткую потерю вида. */
+   private final BooleanSetting targetLock = new BooleanSetting("Удерживать цель", true);
+   private final FloatSetting targetLockTicks = new FloatSetting("Терять цель, тиков", 12.0F, 0.0F, 40.0F, 1.0F)
+      .showWhen(() -> this.targetLock.isEnabled());
    public final ModeSetting sprintReset = new ModeSetting("Сброс спринта", "Legit", new String[]{"Нет", "Legit", "W-Tap", "S-Tap"});
    private final BooleanSetting throughWalls = new BooleanSetting("Через блоки", false);
    private final BooleanSetting unpressShield = new BooleanSetting("Отжимать щит", false);
@@ -182,6 +195,12 @@ public class Aura extends Function {
    private int attackAge = Integer.MIN_VALUE;
    /** Сколько тиков удар уже готов, но ждёт крит (см. critWait). */
    private int critWaitTicks;
+   /** Тик, на котором нажали прыжок под крит (клавиша держится ровно этот тик). */
+   private int critJumpAge = Integer.MIN_VALUE;
+   /** Сколько тиков удар отложен, чтобы не получить сплэш на земле. */
+   private int sweepWaitTicks;
+   /** Сколько тиков цель держится без видимости, прежде чем искать новую. */
+   private int targetLockTicksUsed;
    /** Сколько тиков ждём спада hurtTime у цели, чтобы удар не ушёл в иммунитет. */
    private int hurtWaitTicks;
    /** Диагностика: удар отправлен, ждём подтверждения урона. */
@@ -191,6 +210,11 @@ public class Aura extends Function {
    /** Удары и удары без урона — для .neuro status. */
    private static int dbgAttacks;
    private static int dbgNoDamage;
+   /** Удары в воздухе (криты) и на земле — для .neuro status. */
+   private static int dbgCritHits;
+   private static int dbgGroundHits;
+   /** Сколько тиков удар отложен, чтобы не отдать сплэш. */
+   private static int dbgSweepWaits;
    private LivingEntity holyWorldServerTarget;
    private boolean auraAttackInProgress;
    private long holyWorldHiddenSinceNanos;
@@ -198,7 +222,12 @@ public class Aura extends Function {
    private TpsSync tpsSync = TpsSync.INSTANCE;
    /** Разброс после удара: только он, темп задаёт кулдаун (P()). */
    private static final int ATTACK_DELAY_MIN_TICKS = 0;
-   private static final int ATTACK_DELAY_MAX_TICKS = 2;
+   /** Раньше было 2: лишний тик после каждого удара тормозил комбо. */
+   private static final int ATTACK_DELAY_MAX_TICKS = 1;
+   /** За сколько тиков до готовности удара прыгать под крит (полёт до окна крита). */
+   private static final float CRIT_JUMP_LEAD_TICKS = 6.0F;
+   /** Сколько тиков ждать спринт, чтобы удар на земле не стал сплэшем. */
+   private static final int SWEEP_WAIT_TICKS = 2;
    private int attackDelayTicks = 0;
    private int ticksToAttack = 0;
    private LivingEntity lastDataTarget = null;
@@ -254,6 +283,11 @@ public class Aura extends Function {
          this.smartCrit,
          this.critWait,
          this.onlyCrits,
+         this.critAttack,
+         this.critJump,
+         this.noSweep,
+         this.targetLock,
+         this.targetLockTicks,
          this.sprintReset,
          this.attackOnEating,
          this.throughWalls,
@@ -341,12 +375,22 @@ public class Aura extends Function {
    @EventHandler
    public void onAttackEntity(AttackEntityEvent var1) {
       if (mc.player != null && mc.world != null && var1.getPlayer() == mc.player && var1.getTarget() instanceof LivingEntity var2 && this.e(var2)) {
+         // Удержание цели: чужой удар (TriggerBot и т.п.) не должен перебивать
+         // нашу живую и доступную цель.
+         if (this.targetLock.isEnabled() && this.target != null && this.target != var2 && this.e(this.target)) {
+            return;
+         }
+
          this.target = var2;
       }
    }
 
    @EventHandler
    public void onMoveInput(EventMoveInput var1) {
+      if (mc.player != null && this.critJumpAge == mc.player.age) {
+         var1.setJump(true);
+      }
+
       this.a(var1);
       SprintReset.a(var1);
       // Спринт больше не выключаем «на всякий случай» каждый воздушный тик:
@@ -523,9 +567,14 @@ public class Aura extends Function {
             this.attackDelayTicks--;
          }
 
+         // Клавишу прыжка, которую нажали мы сами, держим ровно один тик.
+         if (mc.options != null && this.critJumpAge == mc.player.age - 1 && mc.options.jumpKey.isPressed()) {
+            mc.options.jumpKey.setPressed(false);
+         }
+
          this.verifyAttack();
          if (!ModuleClass.packetCriticals.a() || !mc.player.hasStatusEffect(StatusEffects.SLOW_FALLING)) {
-            this.scheduleCritRelease();
+            this.prepareCrit();
             this.E();
          }
       }
@@ -579,6 +628,18 @@ public class Aura extends Function {
 
    public static int dbgLookBlocked() {
       return dbgLookBlocked;
+   }
+
+   public static int dbgCritHits() {
+      return dbgCritHits;
+   }
+
+   public static int dbgGroundHits() {
+      return dbgGroundHits;
+   }
+
+   public static int dbgSweepWaits() {
+      return dbgSweepWaits;
    }
 
    public static int dbgTurningBlocked() {
@@ -636,32 +697,186 @@ public class Aura extends Function {
     * ЗА ТИК до готовности удара: пакет STOP_SPRINTING уходит обычным путём, а удар
     * случается ровно в свой тик и уже критом.
     */
-   private void scheduleCritRelease() {
+   private void prepareCrit() {
       if (mc.player == null || this.target == null) {
          return;
       }
 
-      if (!this.smartCrit.isEnabled() && !this.onlyCrits.isOn()) {
+      boolean critMode = this.critAttack.isEnabled() || this.smartCrit.isEnabled() || this.onlyCrits.isOn();
+
+      if (!critMode) {
          return;
       }
 
-      if (this.attackDelayTicks > 1 || this.critReleaseAge == mc.player.age) {
+      // 1) Спринт снимается за тик до удара: сервер должен увидеть нас без спринта.
+      if (this.attackDelayTicks <= 1
+         && this.critReleaseAge != mc.player.age
+         && mc.player.isSprinting()
+         && IdealHitUtils.e()) {
+         float var1 = Math.min(0.995F, IdealHitUtils.a() + this.attackJitter);
+         // Спринт держится снятым до самого удара (см. SprintReset), поэтому
+         // снимаем его заранее: даже если до готовности 2-3 тика, крит не сорвётся.
+         if (mc.player.getAttackCooldownProgress(0.5F) >= var1 - 0.30F && SprintReset.d()) {
+            this.critReleaseAge = mc.player.age;
+         }
+      }
+
+      // 2) Прыжок заранее: к моменту готовности удара мы уже будем падать.
+      if (this.critAttack.isEnabled() && this.critJump.isEnabled()) {
+         this.tryCritJump();
+      }
+   }
+
+   /**
+    * Прыжок под крит.
+    *
+    * Крит возможен только в падении, а прыжок до окна крита занимает ~6 тиков.
+    * Поэтому прыгаем не «когда готово», а так, чтобы верхняя точка пришлась ровно
+    * на готовность удара: иначе аура бьёт по земле — это сплэш вместо крита.
+    */
+   private void tryCritJump() {
+      if (mc.player == null || mc.options == null || mc.currentScreen != null || this.target == null) {
          return;
       }
 
-      // Крит возможен только в падении, на земле и на подъёме отпускать нечего.
-      if (!mc.player.isSprinting() || !IdealHitUtils.e()) {
+      if (!mc.player.isOnGround()
+         || mc.player.isSneaking()
+         || mc.player.hasVehicle()
+         || mc.player.isTouchingWater()
+         || mc.player.isSubmergedInWater()
+         || mc.player.isClimbing()
+         || mc.player.getAbilities().flying
+         || mc.player.isGliding()) {
          return;
       }
 
-      float var1 = Math.min(0.995F, IdealHitUtils.a() + this.attackJitter);
-      if (mc.player.getAttackCooldownProgress(0.5F) < var1 - 0.09F) {
+      // Игрок сам держит прыжок — не вмешиваемся. Клавишу, которую нажали мы,
+      // отпускает onTick на следующем тике.
+      if (mc.options.jumpKey.isPressed() || SprintReset.isCritRelease()) {
          return;
       }
 
-      if (SprintReset.d()) {
-         this.critReleaseAge = mc.player.age;
+      float cooldownTicks = Math.max(1.0F, this.y());
+      float remaining = (1.0F - mc.player.getAttackCooldownProgress(0.0F)) * cooldownTicks;
+
+      if (remaining > CRIT_JUMP_LEAD_TICKS || remaining < 1.0F) {
+         return;
       }
+
+      // Цель должна быть в пределах удара, иначе прыжок будет в пустоту.
+      double reach = this.range.getFloatValue() + 0.6;
+      if (mc.player.squaredDistanceTo(this.target) > reach * reach) {
+         return;
+      }
+
+      // Потолок над головой: прыжок не даст падения, крита не будет.
+      if (!this.hasJumpRoom()) {
+         return;
+      }
+
+      this.critJumpAge = mc.player.age;
+      mc.options.jumpKey.setPressed(true);
+   }
+
+   /** Есть ли над головой место для полноценного прыжка (нужно ~1.25 блока). */
+   private boolean hasJumpRoom() {
+      if (mc.player == null || mc.world == null) {
+         return false;
+      }
+
+      Vec3d var1 = mc.player.getEntityPos();
+      Box var2 = new Box(var1.x - 0.3, var1.y, var1.z - 0.3, var1.x + 0.3, var1.y + 2.05, var1.z + 0.3);
+      return mc.world.isSpaceEmpty(mc.player, var2);
+   }
+
+   /** Крит прямо сейчас: падаем и спринт уже снят. */
+   private boolean critReady() {
+      return mc.player != null && !mc.player.isSprinting() && IdealHitUtils.e();
+   }
+
+   /**
+    * Крит станет доступен в ближайшие тики:
+    * либо мы в прыжке/на подъёме, либо вот-вот прыгнем сами.
+    */
+   private boolean critComingSoon() {
+      if (mc.player == null) {
+         return false;
+      }
+
+      if (!mc.player.isOnGround()) {
+         return mc.player.getVelocity().y >= 0.0 || mc.player.fallDistance <= 0.0;
+      }
+
+      if (!this.critAttack.isEnabled() || !this.critJump.isEnabled() || !this.hasJumpRoom()) {
+         return false;
+      }
+
+      if (mc.player.isSneaking() || mc.player.hasVehicle() || mc.player.isTouchingWater() || mc.player.isSubmergedInWater()) {
+         return false;
+      }
+
+      float cooldownTicks = Math.max(1.0F, this.y());
+      float remaining = (1.0F - mc.player.getAttackCooldownProgress(0.0F)) * cooldownTicks;
+      // Меньше тика — прыгать поздно (прыжок не успеет), больше лида — рано.
+      return remaining >= 1.0F && remaining <= CRIT_JUMP_LEAD_TICKS + 2.0F;
+   }
+
+   /** Удар сейчас был бы сплэшем (земля, меч, без спринта), и спринт ещё вернётся. */
+   private boolean holdForSprint() {
+      if (this.sweepWaitTicks >= SWEEP_WAIT_TICKS) {
+         return false;
+      }
+
+      if (!this.sweepRisk()) {
+         this.sweepWaitTicks = 0;
+         return false;
+      }
+
+      this.sweepWaitTicks++;
+      dbgSweepWaits++;
+      return true;
+   }
+
+   private boolean sweepRisk() {
+      if (!this.critAttack.isEnabled() || !this.noSweep.isEnabled() || mc.player == null || mc.options == null) {
+         return false;
+      }
+
+      if (mc.player.isSprinting() || !mc.player.isOnGround() || IdealHitUtils.e()) {
+         return false;
+      }
+
+      if (!(mc.player.getMainHandStack().getItem() instanceof SwordItem)) {
+         return false;
+      }
+
+      if (mc.player.getAttackCooldownProgress(0.5F) < 0.9F) {
+         return false;
+      }
+
+      return this.canSprintAgain();
+   }
+
+   /** Спринт включится сам в ближайший тик: игрок идёт вперёд и спринт не заблокирован. */
+   private boolean canSprintAgain() {
+      if (mc.player == null || mc.options == null || mc.player.input == null) {
+         return false;
+      }
+
+      if (!mc.player.input.playerInput.forward()) {
+         return false;
+      }
+
+      if (SprintReset.isCritRelease()) {
+         return false;
+      }
+
+      AutoSprint var1 = AutoSprint.getInstance();
+      if (var1 != null && var1.isActive() && !var1.l()) {
+         return true;
+      }
+
+      return mc.options.sprintKey.isPressed();
    }
 
    private void E() {
@@ -1106,6 +1321,16 @@ public class Aura extends Function {
          }
       } else if (this.target == null || !this.e(this.target)) {
          LivingEntity var1 = this.target;
+         // Удержание: цель жива и в дистанции — держим её ещё несколько тиков,
+         // даже если она на секунду ушла за угол или из поля зрения. Иначе аура
+         // мгновенно перескакивала на пробегающего мимо игрока.
+         if (this.targetLock.isEnabled() && var1 != null && this.softValid(var1)) {
+            if (++this.targetLockTicksUsed <= (int)this.targetLockTicks.getFloatValue()) {
+               return;
+            }
+         }
+
+         this.targetLockTicksUsed = 0;
          this.target = this.H();
          this.critWaitTicks = 0;
          this.hurtWaitTicks = 0;
@@ -1135,7 +1360,47 @@ public class Aura extends Function {
                this.B();
             }
          }
+      } else {
+         this.targetLockTicksUsed = 0;
       }
+   }
+
+   /**
+    * Мягкая проверка удержания: тип цели, друзья, дистанция — без линии видимости,
+    * поля зрения и проверок режимов ротации. Провал вида на пару тиков не должен
+    * стоить нам цели.
+    */
+   private boolean softValid(LivingEntity var1) {
+      if (var1 == null || var1 == mc.player || var1.isRemoved() || !var1.isAlive() || var1.getHealth() <= 0.0F) {
+         return false;
+      }
+
+      if (var1 instanceof ArmorStandEntity || var1 instanceof FakePlayerEntity) {
+         return false;
+      }
+
+      if (var1 instanceof PlayerEntity var2) {
+         if (!this.targets.isSelected("Игроки") || this.b(var2)) {
+            return false;
+         }
+
+         if (this.c(var2) && !this.targets.isSelected("Голые")) {
+            return false;
+         }
+      } else if (var1 instanceof PassiveEntity || var1 instanceof CodEntity) {
+         if (!this.targets.isSelected("Мирные")) {
+            return false;
+         }
+      } else if (var1 instanceof HostileEntity) {
+         if (!this.targets.isSelected("Мобы")) {
+            return false;
+         }
+      } else if (!(var1 instanceof IronGolemEntity) && !(var1 instanceof BatEntity)) {
+         return false;
+      }
+
+      double var3 = this.z() + 2.0;
+      return mc.player.squaredDistanceTo(var1) <= var3 * var3;
    }
 
    public LivingEntity a(double var1) {
@@ -1193,6 +1458,12 @@ public class Aura extends Function {
       this.attackAge = mc.player.age;
       this.critWaitTicks = 0;
       this.hurtWaitTicks = 0;
+      this.sweepWaitTicks = 0;
+      if (mc.player.isOnGround()) {
+         dbgGroundHits++;
+      } else {
+         dbgCritHits++;
+      }
       this.attackSentAge = mc.player.age;
       this.attackTrackedTarget = this.target;
       this.attackTargetHurtAtSend = this.target.hurtTime;
@@ -1219,6 +1490,11 @@ public class Aura extends Function {
          } finally {
             if (mc.player != null && mc.player.isOnGround()) {
                SprintReset.a(this.sprintReset.getActiveMode(), var16);
+            } else {
+               // Крит уже случился — спринт возвращаем сразу, не ждём два тика.
+               // Иначе приземление заставало нас без спринта и следующий удар
+               // снова уходил сплэшем.
+               SprintReset.restoreCritSprint();
             }
          }
       } finally {
@@ -1618,30 +1894,33 @@ public class Aura extends Function {
          }
 
          if (this.onlyCrits.isOn()) {
-            return IdealHitUtils.d() || IdealHitUtils.e();
+            return this.critReady();
          }
 
-         if (!this.smartCrit.isEnabled()) {
-            return true;
-         }
+         boolean critMode = this.critAttack.isEnabled() || this.smartCrit.isEnabled();
 
-         // Крит возможен только в падении. На земле ждать нечего, а на подъёме
-         // ожидание съедало 2-3 удара подряд (прыжок с ~1 блоком над головой) —
-         // именно из-за этого разваливалось комбо. Ждём максимум 2 тика и только
-         // сразу после верхней точки, когда fallDistance ещё нулевой.
-         if (IdealHitUtils.e()) {
+         if (critMode) {
+            if (this.critReady()) {
+               this.critWaitTicks = 0;
+               return true;
+            }
+
+            // Крит будет через тик-два (уже прыгнули или вот-вот прыгнем):
+            // подождать дешевле, чем отдать удар без крита. Не дольше critWait.
+            if (this.critWaitTicks < (int)this.critWait.getFloatValue() && this.critComingSoon()) {
+               this.critWaitTicks++;
+               return false;
+            }
+
             this.critWaitTicks = 0;
-            return true;
          }
 
-         if (!mc.player.isOnGround()
-            && mc.player.getVelocity().y < 0.0
-            && this.critWaitTicks < Math.min(2, (int)this.critWait.getFloatValue())) {
-            this.critWaitTicks++;
+         // Удар на земле без спринта — это сплэш. Спринт возвращается сам,
+         // поэтому пару тиков ждём: лучше спринт-удар, чем лишний сплэш.
+         if (this.holdForSprint()) {
             return false;
          }
 
-         this.critWaitTicks = 0;
          return true;
       } else {
          return false;
@@ -1834,6 +2113,20 @@ public class Aura extends Function {
          : (this.rotationType.isSelected("Legit") ? Math.max(this.range.getFloatValue() + 1.5F, 4.5F) : this.range.getFloatValue());
    }
 
+   /** Сброс состояния ударов и удержания цели (включение/выключение ауры). */
+   private void resetCritState() {
+      if (mc.options != null && this.critJumpAge != Integer.MIN_VALUE) {
+         mc.options.jumpKey.setPressed(false);
+      }
+
+      SprintReset.restoreCritSprint();
+      this.critJumpAge = Integer.MIN_VALUE;
+      this.critWaitTicks = 0;
+      this.sweepWaitTicks = 0;
+      this.hurtWaitTicks = 0;
+      this.targetLockTicksUsed = 0;
+   }
+
    @Override
    public void onDisable() {
       super.onDisable();
@@ -1841,6 +2134,7 @@ public class Aura extends Function {
       this.hadTarget = false;
       this.prevAuraPlayerYaw = Float.NaN;
       this.B();
+      this.resetCritState();
       if (this.target != null) {
          this.backTimer.a();
       }
@@ -1882,6 +2176,7 @@ public class Aura extends Function {
       this.returning = false;
       this.hadTarget = false;
       this.prevAuraPlayerYaw = Float.NaN;
+      this.resetCritState();
       if (mc.player != null) {
          this.naturalYaw = mc.player.getYaw();
          this.naturalPitch = mc.player.getPitch();

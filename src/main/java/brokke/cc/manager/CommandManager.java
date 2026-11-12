@@ -1181,6 +1181,13 @@ public class CommandManager {
                ));
                d(String.format(
                   Locale.ROOT,
+                  "§7Криты: §f%d §7в воздухе, §f%d §7на земле, отложено ради спринта: §f%d",
+                  Aura.dbgCritHits(),
+                  Aura.dbgGroundHits(),
+                  Aura.dbgSweepWaits()
+               ));
+               d(String.format(
+                  Locale.ROOT,
                   "§7Отложено ударов: наводка мимо хитбокса §f%d§7, удар в момент переводки §f%d §7— §f.neuro reset",
                   Aura.dbgLookBlocked(),
                   Aura.dbgTurningBlocked()
