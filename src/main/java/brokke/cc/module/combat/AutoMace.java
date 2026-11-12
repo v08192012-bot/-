@@ -5,6 +5,7 @@ import brokke.cc.module.Category;
 import brokke.cc.module.Function;
 import brokke.cc.module.FunctionManager;
 import brokke.cc.module.NewFunction;
+import brokke.cc.module.movement.WindHop;
 import brokke.cc.setting.BooleanSetting;
 import brokke.cc.setting.FloatSetting;
 import brokke.cc.system.events.EventHandler;
@@ -64,6 +65,10 @@ public class AutoMace extends Function {
    public void onUpdate(UpdateEvent var1) {
       if (mc.player == null || mc.world == null) {
          this.o();
+      } else if (WindHop.isBusy()) {
+         // WindHop сам решает, что держать в руке (заряд ветра → булаву).
+         // Второй хозяин слота здесь только путает возврат предмета.
+         return;
       } else if (!mc.player.isUsingItem()) {
          int var2 = mc.player.getInventory().getSelectedSlot();
          if (this.ourMaceSlot != -1 && var2 != this.ourMaceSlot) {

@@ -60,6 +60,15 @@ public class RotationStorage {
       return this.currentPriority;
    }
 
+   /**
+    * Сбросить приоритет текущей задачи, не трогая цель и камеру.
+    * Нужно модулям, которые на время забирают наводку выше ауры: иначе после них
+    * высокий приоритет остался бы висеть и блокировал ауру.
+    */
+   public void resetPriority() {
+      this.currentPriority = 0;
+   }
+
    public Rotation2 getTargetRotation() {
       return this.targetRotation;
    }

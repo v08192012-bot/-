@@ -65,6 +65,7 @@ import brokke.cc.module.render.NoRender;
 import brokke.cc.module.player.NoRotate;
 import brokke.cc.module.movement.NoSlow;
 import brokke.cc.module.movement.NoWeb;
+import brokke.cc.module.movement.WindHop;
 import brokke.cc.module.player.OpenWalls;
 import brokke.cc.module.misc.Optimizer;
 import brokke.cc.module.render.Particles;
@@ -131,6 +132,7 @@ public class FunctionManager {
          new BoatLongJump(),
          new Spider(),
          new Speed(),
+         new WindHop(),
          new Baritone()
       );
       a(new AirStuck());

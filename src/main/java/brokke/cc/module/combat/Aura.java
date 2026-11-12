@@ -7,6 +7,7 @@ import brokke.cc.module.FunctionManager;
 import brokke.cc.module.ModuleClass;
 import brokke.cc.module.NewFunction;
 import brokke.cc.module.movement.AutoSprint;
+import brokke.cc.module.movement.WindHop;
 import brokke.cc.module.player.AutoEat;
 import brokke.cc.module.player.NoRotate;
 import brokke.cc.core.AuraChecks;
@@ -115,6 +116,10 @@ public class Aura extends Function {
    /** Удар на земле без спринта — это сплэш: ждём спринт до двух тиков, потом бьём. */
    private final BooleanSetting noSweep = new BooleanSetting("Без сплэшей", true)
       .showWhen(() -> this.critAttack.isEnabled());
+   /** Булава: бить смэшем, пока падаем сверху на цель (урон считается от высоты падения). */
+   private final BooleanSetting maceSmash = new BooleanSetting("Булава при падении", true);
+   private final FloatSetting maceMinFall = new FloatSetting("Булава: мин. падение, блоков", 1.5F, 0.5F, 8.0F, 0.5F)
+      .showWhen(() -> this.maceSmash.isEnabled());
    /** Удержание цели: не переключаться на пробегающих мимо и переживать короткую потерю вида. */
    private final BooleanSetting targetLock = new BooleanSetting("Удерживать цель", true);
    private final FloatSetting targetLockTicks = new FloatSetting("Терять цель, тиков", 12.0F, 0.0F, 40.0F, 1.0F)
@@ -215,6 +220,8 @@ public class Aura extends Function {
    /** Удары в воздухе (криты) и на земле — для .neuro status. */
    private static int dbgCritHits;
    private static int dbgGroundHits;
+   /** Смэши булавой в падении — для .neuro status. */
+   private static int dbgMaceHits;
    /** Сколько тиков удар отложен, чтобы не отдать сплэш. */
    private static int dbgSweepWaits;
    private LivingEntity holyWorldServerTarget;
@@ -230,6 +237,12 @@ public class Aura extends Function {
    private static final float CRIT_JUMP_LEAD_TICKS = 6.0F;
    /** Сколько тиков ждать спринт, чтобы удар на земле не стал сплэшем. */
    private static final int SWEEP_WAIT_TICKS = 2;
+   /**
+    * Минимальная готовность кулдауна для смэша булавой. Окно падения короткое,
+    * а урон смэша всё равно считается от высоты падения, поэтому полный кулдаун
+    * ждать не обязательно — 0.9 хватает, чтобы удар не выглядел «пустым».
+    */
+   private static final float MACE_SMASH_COOLDOWN = 0.9F;
    private int attackDelayTicks = 0;
    private int ticksToAttack = 0;
    private LivingEntity lastDataTarget = null;
@@ -288,6 +301,8 @@ public class Aura extends Function {
          this.critAttack,
          this.critJump,
          this.noSweep,
+         this.maceSmash,
+         this.maceMinFall,
          this.targetLock,
          this.targetLockTicks,
          this.sprintReset,
@@ -645,6 +660,10 @@ public class Aura extends Function {
       return dbgSweepWaits;
    }
 
+   public static int dbgMaceHits() {
+      return dbgMaceHits;
+   }
+
    public static int dbgTurningBlocked() {
       return dbgTurningBlocked;
    }
@@ -742,6 +761,10 @@ public class Aura extends Function {
          return;
       }
 
+      if (WindHop.isBusy()) {
+         return;
+      }
+
       if (!mc.player.isOnGround()
          || mc.player.isSneaking()
          || mc.player.hasVehicle()
@@ -806,6 +829,35 @@ public class Aura extends Function {
       Vec3d var1 = mc.player.getEntityPos();
       Box var2 = new Box(var1.x - 0.3, var1.y, var1.z - 0.3, var1.x + 0.3, var1.y + 2.05, var1.z + 0.3);
       return mc.world.isSpaceEmpty(mc.player, var2);
+   }
+
+   /** Падаем с булавой в руке: идёт окно смэша (высоту падения проверяем отдельно). */
+   private boolean fallingWithMace() {
+      return this.maceSmash.isEnabled()
+         && mc.player != null
+         && mc.player.getMainHandStack().getItem() == Items.MACE
+         && !mc.player.isOnGround()
+         && !mc.player.isGliding()
+         && !mc.player.getAbilities().flying
+         && !mc.player.isTouchingWater()
+         && mc.player.getVelocity().y < -0.02;
+   }
+
+   /**
+    * Смэш булавой: булава в руке, мы в падении и цель ниже нас.
+    * Урон булавы считается от высоты падения, поэтому важна не шкала кулдауна,
+    * а сам факт падения — бьём, пока ещё в воздухе.
+    */
+   private boolean maceFallReady() {
+      if (!this.fallingWithMace() || this.target == null) {
+         return false;
+      }
+
+      if (mc.player.fallDistance < this.maceMinFall.getFloatValue()) {
+         return false;
+      }
+
+      return mc.player.getY() - this.target.getY() > 0.2;
    }
 
    /** Крит прямо сейчас: падаем и спринт уже снят. */
@@ -1361,7 +1413,13 @@ public class Aura extends Function {
          // даже если она на секунду ушла за угол или из поля зрения. Иначе аура
          // мгновенно перескакивала на пробегающего мимо игрока.
          if (this.targetLock.isEnabled() && var1 != null && this.softValid(var1)) {
-            if (++this.targetLockTicksUsed <= (int)this.targetLockTicks.getFloatValue()) {
+            int lockTicks = (int)this.targetLockTicks.getFloatValue();
+            if (this.fallingWithMace()) {
+               // Падение с булавой длится дольше обычной потери вида — держим цель до смэша.
+               lockTicks = Math.max(lockTicks, 30);
+            }
+
+            if (++this.targetLockTicksUsed <= lockTicks) {
                return;
             }
          }
@@ -1435,7 +1493,9 @@ public class Aura extends Function {
          return false;
       }
 
-      double var3 = this.z() + 2.0;
+      // С булавой падаем сверху: цель снизу ещё далеко по дистанции удара,
+      // но терять её нельзя, иначе смэш приземлится в пустоту.
+      double var3 = this.z() + (this.fallingWithMace() ? 6.0 : 2.0);
       return mc.player.squaredDistanceTo(var1) <= var3 * var3;
    }
 
@@ -1499,6 +1559,9 @@ public class Aura extends Function {
          dbgGroundHits++;
       } else {
          dbgCritHits++;
+         if (mc.player.getMainHandStack().getItem() == Items.MACE) {
+            dbgMaceHits++;
+         }
       }
       this.attackSentAge = mc.player.age;
       this.attackTrackedTarget = this.target;
@@ -1865,6 +1928,12 @@ public class Aura extends Function {
    }
 
    private boolean P() {
+      // WindHop в этот момент держит в руке заряд ветра и ведёт взгляд вниз:
+      // удар сейчас был бы ударом зарядом мимо цели.
+      if (WindHop.isBusy()) {
+         return false;
+      }
+
       if (this.target != null && mc.player != null) {
          // Пакет атаки уходит из тика РАНЬШЕ пакета поворота этого же тика, поэтому
          // сервер проверяет попадание по нашей ПРОШЛОЙ наводке. Проверяем ровно её —
@@ -1888,7 +1957,10 @@ public class Aura extends Function {
          // Джиттер ТОЛЬКО вверх: ударить раньше полного кулдауна = потерять урон,
          // а вот «всегда ровно на 0.98» — это ровный таймер, который ловят AutoClicker-чеки
          float var1 = Math.min(0.995F, IdealHitUtils.a() + this.attackJitter);
-         if (mc.player.getAttackCooldownProgress(0.5F) < var1 - 0.001F) {
+         // Смэш булавой бьёт раньше полной шкалы: окно падения короткое, а бонус
+         // зависит от высоты падения, а не от заряда.
+         float minCooldown = this.maceFallReady() ? MACE_SMASH_COOLDOWN : var1;
+         if (mc.player.getAttackCooldownProgress(0.5F) < minCooldown - 0.001F) {
             return false;
          }
 
@@ -1927,6 +1999,13 @@ public class Aura extends Function {
             if (var3 > var5 * var5) {
                return false;
             }
+         }
+
+         // Булава в падении: смэш не требует ни крит-окна, ни сброса спринта —
+         // урон даёт сама высота падения. Ждать здесь = потерять смэш.
+         if (this.maceFallReady()) {
+            this.critWaitTicks = 0;
+            return true;
          }
 
          if (this.onlyCrits.isOn()) {

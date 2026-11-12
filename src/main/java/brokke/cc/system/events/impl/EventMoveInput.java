@@ -41,6 +41,13 @@ public class EventMoveInput extends Event {
 
    public void setJump(boolean var1) {
       this.jump = var1;
+      // Если кто-то уже собрал полный PlayerInput (TestNerv), флаг jump из этого поля
+      // миксин игнорирует. Держим обе формы ввода согласованными: иначе прыжок,
+      // выставленный модулем (WindHop, крит-прыжок ауры), молча терялся.
+      if (this.playerInput != null) {
+         PlayerInput var2 = this.playerInput;
+         this.playerInput = new PlayerInput(var2.forward(), var2.backward(), var2.left(), var2.right(), var1, var2.sneak(), var2.sprint());
+      }
    }
 
    public void setSneak(boolean var1) {

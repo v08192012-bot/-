@@ -9,6 +9,7 @@ import brokke.cc.module.Category;
 import brokke.cc.module.Function;
 import brokke.cc.module.FunctionManager;
 import brokke.cc.module.NewFunction;
+import brokke.cc.module.movement.WindHop;
 import brokke.cc.rotation.IdealHitUtils;
 import brokke.cc.setting.BooleanSetting;
 import brokke.cc.setting.FloatSetting;
@@ -197,6 +198,12 @@ public class TriggerBot extends Function {
       }
 
       if (mc.currentScreen != null || mc.interactionManager.isBreakingBlock()) {
+         return;
+      }
+
+      // WindHop держит в руке заряд ветра и доворачивает взгляд вниз — удар сейчас
+      // был бы ударом зарядом мимо цели (и портил бы тайминг прыжка).
+      if (WindHop.isBusy()) {
          return;
       }
 

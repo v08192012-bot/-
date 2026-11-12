@@ -1181,8 +1181,9 @@ public class CommandManager {
                ));
                d(String.format(
                   Locale.ROOT,
-                  "§7Криты: §f%d §7в воздухе, §f%d §7на земле, отложено ради спринта: §f%d",
+                  "§7Криты: §f%d §7в воздухе (из них булава: §f%d§7), §f%d §7на земле, отложено ради спринта: §f%d",
                   Aura.dbgCritHits(),
+                  Aura.dbgMaceHits(),
                   Aura.dbgGroundHits(),
                   Aura.dbgSweepWaits()
                ));
