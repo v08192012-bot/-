@@ -58,6 +58,37 @@ jobs:
           set -o pipefail
           ./gradlew build --no-daemon --stacktrace --console=plain 2>&1 | tee gradle.log
 
+      - name: Self-check TestNerv model
+        run: |
+          # 1) модель в jar обязана распаковываться в тот же файл, что в Opus
+          MODEL=src/main/resources/assets/brokke/testnerv/bc_camera_testnerv.json.gz
+          SUM=$(gzip -dc "$MODEL" | sha256sum | cut -d' ' -f1)
+          echo "sha256 распакованной модели: $SUM"
+          if [ "$SUM" != "aeecef0cb76e2f53201bedc427bd56efce5f5d79ca5c2d3f5a785253446f968d" ]; then
+            echo "::error::bc_camera_testnerv.json не совпал с эталоном Opus"
+            exit 1
+          fi
+          # 2) встроенные эталоны Opus: признаки, логиты, пределы, дискриминатор
+          GSON=$(find ~/.gradle/caches -name 'gson-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' | head -n1)
+          if [ -z "$GSON" ]; then
+            curl -sSL -o /tmp/gson.jar https://repo1.maven.org/maven2/com/google/code/gson/gson/2.11.0/gson-2.11.0.jar
+            GSON=/tmp/gson.jar
+          fi
+          echo "gson: $GSON"
+          mkdir -p /tmp/testnerv
+          javac -cp "$GSON" -d /tmp/testnerv \
+            src/main/java/brokke/cc/rotation/testnerv/TestNervNet.java \
+            src/main/java/brokke/cc/rotation/testnerv/TestNervKeyFix.java \
+            src/main/java/brokke/cc/rotation/testnerv/TestNervSelfCheck.java
+          java -cp "/tmp/testnerv:$GSON" brokke.cc.rotation.testnerv.TestNervSelfCheck "$MODEL"
+          # 3) поправщик клавиш: загрузчик обязан сойтись с эталоном Opus на его файле.
+          #    Если репозиторий недоступен — это не ошибка сборки.
+          if curl -fsSL -o /tmp/bc_keyfix_2.json https://raw.githubusercontent.com/v08192012-bot/opus/main/src/main/resources/models/bc_keyfix_2.json; then
+            java -cp "/tmp/testnerv:$GSON" brokke.cc.rotation.testnerv.TestNervSelfCheck "$MODEL" /tmp/bc_keyfix_2.json
+          else
+            echo "::warning::файл поправщика из Opus недоступен, проверка пропущена"
+          fi
+
       - name: Collect jar
         if: success()
         run: |
@@ -70,7 +101,7 @@ jobs:
         run: |
           JAR=$(ls dist/*.jar | head -n1)
           echo "JAR: $JAR"
-          for cls in brokke/cc/module/render/Atmosphere.class brokke/cc/render/SnowRenderer.class brokke/cc/mixins/render/BlockColorsMixin.class brokke/cc/rotation/SpookyNewRotation.class brokke/cc/rotation/SpookyTestRotation.class brokke/cc/rotation/spooky/SpookyModel.class brokke/cc/rotation/spooky/SpookyRotation.class assets/brokke/textures/snow/frost.png assets/brokke/rotation/spooky_motor.bin.gz; do
+          for cls in brokke/cc/module/render/Atmosphere.class brokke/cc/render/SnowRenderer.class brokke/cc/mixins/render/BlockColorsMixin.class brokke/cc/rotation/SpookyNewRotation.class brokke/cc/rotation/SpookyTestRotation.class brokke/cc/rotation/TestNervRotation.class brokke/cc/rotation/testnerv/TestNervNet.class brokke/cc/rotation/testnerv/TestNervKeyFix.class brokke/cc/rotation/testnerv/TestNervCamera.class brokke/cc/rotation/spooky/SpookyModel.class brokke/cc/rotation/spooky/SpookyRotation.class assets/brokke/textures/snow/frost.png assets/brokke/rotation/spooky_motor.bin.gz assets/brokke/testnerv/bc_camera_testnerv.json.gz; do
             if unzip -l "$JAR" | grep -q "$cls"; then
               echo "::notice::OK: $cls present"
             else
@@ -97,6 +128,13 @@ jobs:
             echo "::notice::OK: spooky_motor.bin.gz в jar распаковывается в эталонные веса"
           else
             echo "::error::модель внутри jar побилась (sha256 $JARSUM)"
+            exit 1
+          fi
+          NERVSUM=$(unzip -p "$JAR" assets/brokke/testnerv/bc_camera_testnerv.json.gz | gzip -dc | sha256sum | cut -d' ' -f1)
+          if [ "$NERVSUM" = "aeecef0cb76e2f53201bedc427bd56efce5f5d79ca5c2d3f5a785253446f968d" ]; then
+            echo "::notice::OK: модель TestNerv в jar совпадает с Opus"
+          else
+            echo "::error::модель TestNerv в jar побилась (sha256 $NERVSUM)"
             exit 1
           fi
           REFS=$(unzip -p "$JAR" brokke/cc/mixins/render/BlockColorsMixin.class | strings | grep -c 'method_' || true)

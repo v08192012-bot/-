@@ -1,6 +1,7 @@
 package brokke.cc.system.events.impl;
 
 import brokke.cc.system.events.Event;
+import net.minecraft.util.PlayerInput;
 
 public class EventMoveInput extends Event {
    private float forward;
@@ -8,6 +9,7 @@ public class EventMoveInput extends Event {
    private boolean jump;
    private boolean sneak;
    private boolean sprint;
+   private PlayerInput playerInput;
 
    public float getForward() {
       return this.forward;
@@ -47,6 +49,15 @@ public class EventMoveInput extends Event {
 
    public void setSprint(boolean var1) {
       this.sprint = var1;
+   }
+
+   /** Полная замена ввода (биты клавиш), как в Opus: снек всегда остаётся прежним. */
+   public PlayerInput getPlayerInput() {
+      return this.playerInput;
+   }
+
+   public void setPlayerInput(PlayerInput var1) {
+      this.playerInput = var1;
    }
 
    public EventMoveInput(float var1, float var2, boolean var3, boolean var4, boolean var5) {

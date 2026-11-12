@@ -7,6 +7,7 @@ import net.minecraft.client.input.KeyboardInput;
 import net.minecraft.util.PlayerInput;
 import net.minecraft.util.math.Vec2f;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -22,11 +23,27 @@ public abstract class MovementInputMixin extends Input {
       boolean var6 = this.playerInput.sprint();
       EventMoveInput var7 = new EventMoveInput(var2, var3, var4, var5, var6);
       EventBus.post(var7);
-      this.movementVector = new Vec2f(var7.getStrafe(), var7.getForward());
-      boolean var8 = var7.getForward() > 0.0F;
-      boolean var9 = var7.getForward() < 0.0F;
-      boolean var10 = var7.getStrafe() > 0.0F;
-      boolean var11 = var7.getStrafe() < 0.0F;
-      this.playerInput = new PlayerInput(var8, var9, var10, var11, var7.isJump(), var7.isSneak(), var7.isSprint());
+      PlayerInput var12 = var7.getPlayerInput();
+
+      if (var12 != null) {
+         this.playerInput = new PlayerInput(var12.forward(), var12.backward(), var12.left(), var12.right(), var12.jump(), var12.sneak(), var12.sprint());
+         this.movementVector = new Vec2f(axis(var12.left(), var12.right()), axis(var12.forward(), var12.backward()));
+      } else {
+         this.movementVector = new Vec2f(var7.getStrafe(), var7.getForward());
+         boolean var8 = var7.getForward() > 0.0F;
+         boolean var9 = var7.getForward() < 0.0F;
+         boolean var10 = var7.getStrafe() > 0.0F;
+         boolean var11 = var7.getStrafe() < 0.0F;
+         this.playerInput = new PlayerInput(var8, var9, var10, var11, var7.isJump(), var7.isSneak(), var7.isSprint());
+      }
+   }
+
+   @Unique
+   private static float axis(boolean positive, boolean negative) {
+      if (positive == negative) {
+         return 0.0F;
+      }
+
+      return positive ? 1.0F : -1.0F;
    }
 }

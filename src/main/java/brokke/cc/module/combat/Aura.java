@@ -33,6 +33,7 @@ import brokke.cc.rotation.SlothRotation;
 import brokke.cc.rotation.SpookyNewRotation;
 import brokke.cc.rotation.SpookyTestRotation;
 import brokke.cc.rotation.SpookyTimeRotation;
+import brokke.cc.rotation.TestNervRotation;
 import brokke.cc.rotation.TestRotation;
 import brokke.cc.rotation.WhiteRiseRotation;
 import brokke.cc.setting.BooleanSetting;
@@ -92,7 +93,7 @@ import net.minecraft.world.RaycastContext.ShapeType;
 public class Aura extends Function {
    public static Aura INSTANCE;
    public final ModeSetting rotationType = new ModeSetting(
-      "Ротация", "Legit", new String[]{"Legit", "ReallyWorld", "SkyTime", "Нейро", "SpookyTime", "SpookyNew", "SpookyTest"}
+      "Ротация", "Legit", new String[]{"Legit", "ReallyWorld", "SkyTime", "Нейро", "SpookyTime", "SpookyNew", "SpookyTest", "TestNerv"}
    );
    private final ListSetting targets = new ListSetting(
       "Таргеты", new BooleanSetting("Игроки", true), new BooleanSetting("Голые", true), new BooleanSetting("Мирные", false), new BooleanSetting("Мобы", true)
@@ -139,6 +140,9 @@ public class Aura extends Function {
    /** SpookyTest: масштаб шага и сглаживания (100% = параметры эталонной ротации). */
    private final FloatSetting spookyTestSpeed = new FloatSetting("Скорость SpookyTest", 100.0F, 50.0F, 150.0F, 5.0F)
       .showWhen(() -> this.rotationType.isSelected("SpookyTest"));
+   /** TestNerv: доля времени, когда сеть держит прицел на цели (как в Opus). */
+   private final FloatSetting testNervHold = new FloatSetting("TestNerv удержание", 50.0F, 0.0F, 100.0F, 5.0F)
+      .showWhen(() -> this.rotationType.isSelected("TestNerv"));
    private LivingEntity target;
    Vec2f currentRotations = new Vec2f(0.0F, 0.0F);
    Vec2f targetRotations = new Vec2f(0.0F, 0.0F);
@@ -157,6 +161,7 @@ public class Aura extends Function {
    private final SpookyTimeRotation spookyTimeRotation = new SpookyTimeRotation();
    private final SpookyNewRotation spookyNewRotation = new SpookyNewRotation();
    private final SpookyTestRotation spookyTestRotation = new SpookyTestRotation();
+   private final TestNervRotation testNervRotation = new TestNervRotation();
    private boolean funtimeModeActive = false;
    private boolean slothModeActive = false;
    private boolean skyTimeModeActive = false;
@@ -164,6 +169,7 @@ public class Aura extends Function {
    private boolean spookyTimeModeActive = false;
    private boolean spookyNewModeActive = false;
    private boolean spookyTestModeActive = false;
+   private boolean testNervModeActive = false;
    private boolean holyWorldModeActive = false;
    private float lastServerYaw;
    private float lastServerPitch;
@@ -266,7 +272,10 @@ public class Aura extends Function {
          this.neuroFov,
          this.neuroSmooth,
          this.spookySpeed,
-         this.spookyMicro
+         this.spookyMicro,
+         this.spookyNewSpeed,
+         this.spookyTestSpeed,
+         this.testNervHold
       );
    }
 
@@ -767,6 +776,10 @@ public class Aura extends Function {
             this.AC();
          }
 
+         if (!this.rotationType.isSelected("TestNerv")) {
+            this.AD();
+         }
+
          if (!this.S()) {
             this.W();
          }
@@ -883,6 +896,12 @@ public class Aura extends Function {
             this.spookyTestRotation.setSpeed(this.spookyTestSpeed.getFloatValue());
             this.spookyTestRotation.setVisibleAim(clientLook.isEnabled());
             var1 = this.spookyTestRotation;
+         } else if (this.rotationType.isSelected("TestNerv")) {
+            if (!this.testNervModeActive) {
+               this.testNervModeActive = true;
+            }
+
+            var1 = this.testNervRotation;
          } else if (this.rotationType.isSelected("SkyTime")) {
             if (!this.skyTimeModeActive) {
                this.skyTimeRotation.a();
@@ -1109,6 +1128,9 @@ public class Aura extends Function {
                // 25 мс удержания + 75 мс интерполяции к взгляду игрока: резкий сброс
                // ротации на потерянной цели — заметный признак киллауры.
                this.spookyTestRotation.beginReturn();
+            } else if (this.rotationType.isSelected("TestNerv")) {
+               // Opus не сбрасывает TestNerv без цели: сеть продолжает вести камеру
+               // (признак «цель есть» просто становится нулём).
             } else {
                this.B();
             }
@@ -1546,7 +1568,7 @@ public class Aura extends Function {
 
          // Удар посреди крупной переводки — отдельный признак для античитов: живой игрок
          // кликает, когда прицел уже стоит. Ждём, пока шаг ротации упадёт ниже порога.
-         if (this.lastPacketYawStep > 10.0F || this.lastPacketPitchStep > 6.0F) {
+         if (!this.rotationType.isSelected("TestNerv") && (this.lastPacketYawStep > 10.0F || this.lastPacketPitchStep > 6.0F)) {
             dbgTurningBlocked++;
             return false;
          }
@@ -1706,6 +1728,18 @@ public class Aura extends Function {
       }
    }
 
+   private void AD() {
+      if (this.testNervModeActive) {
+         this.testNervModeActive = false;
+         this.testNervRotation.a();
+      }
+   }
+
+   /** TestNerv: доля удержания прицела на цели, 0..1 (слайдер 0..100 %). */
+   public float getTestNervHold() {
+      return MathHelper.clamp(this.testNervHold.getFloatValue() / 100.0F, 0.0F, 1.0F);
+   }
+
    private boolean S() {
       return this.rotationType.isSelected("HolyWorld") || this.rotationType.isSelected("Holy2");
    }
@@ -1835,6 +1869,8 @@ public class Aura extends Function {
       this.spookyNewModeActive = false;
       this.spookyTestRotation.a();
       this.spookyTestModeActive = false;
+      this.testNervRotation.a();
+      this.testNervModeActive = false;
       this.lastDataTarget = null;
       this.ticksToAttack = 0;
       this.attackDelayTicks = 0;
@@ -1881,6 +1917,8 @@ public class Aura extends Function {
       this.spookyNewModeActive = false;
       this.spookyTestRotation.a();
       this.spookyTestModeActive = false;
+      this.testNervRotation.a();
+      this.testNervModeActive = false;
       this.lastDataTarget = null;
       this.ticksToAttack = 0;
       this.attackDelayTicks = 0;

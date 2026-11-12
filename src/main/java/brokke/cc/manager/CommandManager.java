@@ -4,6 +4,7 @@ import brokke.cc.config.ConfigManager;
 import brokke.cc.core.FakePlayerTickHandler;
 import brokke.cc.core.NeuroRecorder;
 import brokke.cc.module.combat.Aura;
+import brokke.cc.rotation.testnerv.TestNervCamera;
 import brokke.cc.neuro.NeuroModels;
 import brokke.cc.neuro.NeuroTrainer;
 import brokke.cc.core.RCTCommand;
@@ -1163,6 +1164,7 @@ public class CommandManager {
             case "status":
                d(NeuroRecorder.INSTANCE.status());
                d("§7Модель: " + NeuroModels.describe());
+               d("§7TestNerv: §f" + TestNervCamera.INSTANCE.status());
                d(NeuroTrainer.status());
                d(String.format(
                   Locale.ROOT,
