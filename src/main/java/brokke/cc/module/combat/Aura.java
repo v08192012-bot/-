@@ -15,6 +15,7 @@ import brokke.cc.core.FreeLookStorage;
 import brokke.cc.core.SprintReset;
 import brokke.cc.core.TpsSync;
 import brokke.cc.manager.FriendManager;
+import brokke.cc.manager.TaskScheduler;
 import brokke.cc.nav.BestPoint;
 import brokke.cc.rotation.AimAssistRotation;
 import brokke.cc.rotation.FuntimeRotation;
@@ -194,8 +195,10 @@ public class Aura extends Function {
    private int attackAge = Integer.MIN_VALUE;
    /** Сколько тиков удар уже готов, но ждёт крит (см. critWait). */
    private int critWaitTicks;
-   /** Тик, на котором нажали прыжок под крит (клавиша держится ровно этот тик). */
+   /** Тик, на котором нажали прыжок под крит (по этому признаку прыжок уходит в событие ввода). */
    private int critJumpAge = Integer.MIN_VALUE;
+   /** Сколько тиков осталось держать клавишу прыжка (не зависит от age: он сбрасывается при респавне). */
+   private int critJumpTicks;
    /** Сколько тиков удар отложен, чтобы не получить сплэш на земле. */
    private int sweepWaitTicks;
    /** Сколько тиков цель держится без видимости, прежде чем искать новую. */
@@ -394,7 +397,7 @@ public class Aura extends Function {
       SprintReset.a(var1);
       // Спринт больше не выключаем «на всякий случай» каждый воздушный тик:
       // это и давало рывки в движении. Под крит спринт отпускается точечно,
-      // за тик до удара (scheduleCritRelease).
+      // за тик-два до удара (prepareCrit).
    }
 
    private void a(EventMoveInput var1) {
@@ -567,7 +570,8 @@ public class Aura extends Function {
          }
 
          // Клавишу прыжка, которую нажали мы сами, держим ровно один тик.
-         if (mc.options != null && this.critJumpAge == mc.player.age - 1 && mc.options.jumpKey.isPressed()) {
+         // Счётчик тиков, а не age: age сбрасывается при респавне, и клавиша залипла бы.
+         if (this.critJumpTicks > 0 && --this.critJumpTicks == 0 && mc.options != null) {
             mc.options.jumpKey.setPressed(false);
          }
 
@@ -762,7 +766,22 @@ public class Aura extends Function {
          return;
       }
 
-      // Цель должна быть в пределах удара, иначе прыжок будет в пустоту.
+      // Пока планировщик задач держит ввод (очередь не пуста), он на HIGHEST
+      // обнуляет прыжок в этом же событии — прыгать бессмысленно, только лишний прыжок.
+      if (!TaskScheduler.e()) {
+         return;
+      }
+
+      // Цель должна быть в пределах удара и на виду, иначе прыжок будет в пустоту.
+      if (!this.throughWalls.isEnabled()) {
+         Vec3d eye = mc.player.getCameraPosVec(1.0F);
+         Vec3d aim = this.target.getBoundingBox().getCenter();
+         BlockHitResult wall = mc.world.raycast(new RaycastContext(eye, aim, ShapeType.COLLIDER, FluidHandling.NONE, mc.player));
+         if (wall != null && wall.getType() != Type.MISS && eye.squaredDistanceTo(wall.getPos()) < eye.squaredDistanceTo(aim) - 1.0E-4) {
+            return;
+         }
+      }
+
       double reach = this.range.getFloatValue() + 0.6;
       if (mc.player.squaredDistanceTo(this.target) > reach * reach) {
          return;
@@ -774,6 +793,7 @@ public class Aura extends Function {
       }
 
       this.critJumpAge = mc.player.age;
+      this.critJumpTicks = 2;
       mc.options.jumpKey.setPressed(true);
    }
 
@@ -2137,6 +2157,7 @@ public class Aura extends Function {
 
       SprintReset.restoreCritSprint();
       this.critJumpAge = Integer.MIN_VALUE;
+      this.critJumpTicks = 0;
       this.critWaitTicks = 0;
       this.sweepWaitTicks = 0;
       this.hurtWaitTicks = 0;

@@ -66,6 +66,13 @@ public final class TaskScheduler {
       }
    }
 
+   /** Очередь пуста (планировщик не держит ввод). */
+   public static boolean e() {
+      synchronized (taskQueue) {
+         return taskQueue.isEmpty();
+      }
+   }
+
    private static int d() {
       int var0 = Integer.MIN_VALUE;
 
