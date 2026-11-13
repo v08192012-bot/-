@@ -131,10 +131,11 @@ public class Aura extends Function {
    private final BooleanSetting attackOnEating = new BooleanSetting("Не бить когда ешь", true);
    /**
     * Тихая наводка: аура крутит игрока для сервера, а камера остаётся за мышью.
-    * Включено по умолчанию — иначе при вращении камерой мышь и аура тянут взгляд
-    * в разные стороны, и руки/модель visibly дёргаются.
+    * По умолчанию ВЫКЛЮЧЕНА: при ней камера живёт отдельно от игрока, и движение
+    * ощущается непривычно (W идёт по камере, а тело смотрит в цель).
+    * Включать только если нужна именно свободная камера во время боя.
     */
-   public final BooleanSetting quietAim = new BooleanSetting("Тихая наводка (свободная камера)", true);
+   public final BooleanSetting quietAim = new BooleanSetting("Тихая наводка (свободная камера)", false);
    public static BooleanSetting clientLook = new BooleanSetting("Наводка от первого лица", true);
    private final FloatSetting skyTimeFov = new FloatSetting("Поле зрения", 120.0F, 30.0F, 180.0F, 1.0F)
       .showWhen(() -> this.rotationType.isSelected("SkyTime"));
@@ -566,6 +567,11 @@ public class Aura extends Function {
          this.prevAuraPlayerYaw = mc.player.getYaw();
          this.prevAuraPlayerPitch = mc.player.getPitch();
          this.lastAppliedAuraYawDelta = 0.0F;
+         if (!this.quietAim.isEnabled() && FreeLookStorage.isSilent() && !RotationStorage.isAimHeld()) {
+            // Тихую наводку выключили прямо в бою: камера должна вернуться сразу.
+            RotationStorage.releaseAim();
+         }
+
          if (this.rotationType.isSelected("Legit")) {
             if (!clientLook.isEnabled() && !this.quietAim.isEnabled()) {
                clientLook.setValue(true);
