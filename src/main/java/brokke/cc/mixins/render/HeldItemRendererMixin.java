@@ -42,7 +42,9 @@ public abstract class HeldItemRendererMixin {
       argsOnly = true
    )
    private float onModifyPitch(float var1) {
-      return FreeLookStorage.isActive() ? FreeLookStorage.getFreePitch() : var1;
+      // Руки должны смотреть туда же, куда камера: и в «тихой» наводке, и пока
+      // камера плавно возвращается к игроку. Иначе взгляд и руки расходятся рывком.
+      return FreeLookStorage.isActive() || FreeLookStorage.isReleasing() ? FreeLookStorage.getFreePitch() : var1;
    }
 
    @Inject(

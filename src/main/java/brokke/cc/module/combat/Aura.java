@@ -129,6 +129,12 @@ public class Aura extends Function {
    private final BooleanSetting unpressShield = new BooleanSetting("Отжимать щит", false);
    private final BooleanSetting breakShield = new BooleanSetting("Ломать щит", true);
    private final BooleanSetting attackOnEating = new BooleanSetting("Не бить когда ешь", true);
+   /**
+    * Тихая наводка: аура крутит игрока для сервера, а камера остаётся за мышью.
+    * Включено по умолчанию — иначе при вращении камерой мышь и аура тянут взгляд
+    * в разные стороны, и руки/модель visibly дёргаются.
+    */
+   public final BooleanSetting quietAim = new BooleanSetting("Тихая наводка (свободная камера)", true);
    public static BooleanSetting clientLook = new BooleanSetting("Наводка от первого лица", true);
    private final FloatSetting skyTimeFov = new FloatSetting("Поле зрения", 120.0F, 30.0F, 180.0F, 1.0F)
       .showWhen(() -> this.rotationType.isSelected("SkyTime"));
@@ -286,11 +292,16 @@ public class Aura extends Function {
       this.returning = false;
       this.hadTarget = false;
       this.aimAssistRotation.b();
-      RotationStorage.a().j();
+      if (!RotationStorage.isAimHeld()) {
+         // WindHop в этот момент держит «тихую» наводку: сброс камеры сломал бы связку.
+         RotationStorage.a().j();
+      }
    }
 
    public Aura() {
       INSTANCE = this;
+      // «Наводка от первого лица» имеет смысл только когда тихая наводка выключена.
+      clientLook.showWhen(() -> !this.quietAim.isEnabled());
       this.addSettings(
          this.rotationType,
          this.targets,
@@ -310,6 +321,7 @@ public class Aura extends Function {
          this.throughWalls,
          this.unpressShield,
          this.breakShield,
+         this.quietAim,
          clientLook,
          this.moveFix,
          this.priority,
@@ -553,11 +565,12 @@ public class Aura extends Function {
          this.prevAuraPlayerPitch = mc.player.getPitch();
          this.lastAppliedAuraYawDelta = 0.0F;
          if (this.rotationType.isSelected("Legit")) {
-            if (!clientLook.isEnabled()) {
+            if (!clientLook.isEnabled() && !this.quietAim.isEnabled()) {
                clientLook.setValue(true);
             }
 
-            if (FreeLookStorage.isActive()) {
+            if (FreeLookStorage.isActive() && !RotationStorage.isAimHeld()) {
+               // WindHop на время связки сам ведёт «тихую» наводку — не отбираем камеру.
                FreeLookStorage.a(false);
             }
          }
@@ -634,6 +647,25 @@ public class Aura extends Function {
 
       this.attackSentAge = Integer.MIN_VALUE;
       this.attackTrackedTarget = null;
+   }
+
+   /** Наводка глазами игрока (камера = прицел) или тихая, пакетами (камера свободна). */
+   public static boolean aimThroughCamera() {
+      Aura var0 = INSTANCE;
+      if (Aura.clientLook == null || !Aura.clientLook.isEnabled()) {
+         return false;
+      }
+
+      if (var0 != null && (var0.rotationType.isSelected("AimAssist") || var0.rotationType.isSelected("Legit"))) {
+         // Аим-ассист и Legit по определению ведут камеру — тихая наводка их выключила бы.
+         return true;
+      }
+
+      if (var0 != null && var0.quietAim.isEnabled()) {
+         return false;
+      }
+
+      return true;
    }
 
    public static int dbgAttacks() {
@@ -1001,6 +1033,12 @@ public class Aura extends Function {
          this.backTimer.a();
          adjPitch = 0.0F;
          adjYaw = 0.0F;
+         if (FreeLookStorage.isSilent() && !RotationStorage.isAimHeld()) {
+            RotationStorage.releaseAim();
+            this.prevAuraPlayerYaw = mc.player.getYaw();
+            this.prevAuraPlayerPitch = mc.player.getPitch();
+         }
+
          this.testRotation.a();
          this.W();
          this.R();
@@ -1100,7 +1138,7 @@ public class Aura extends Function {
                      Vec3d var2 = var1.getEntityPos().add(0.0, var1.getHeight() * 0.6F, 0.0).subtract(mc.player.getEyePos());
                      float var3 = (float)MathHelper.wrapDegrees(Math.toDegrees(Math.atan2(var2.z, var2.x)) - 90.0);
                      float var4 = (float)(-Math.toDegrees(Math.atan2(var2.y, Math.hypot(var2.x, var2.z))));
-                     RotationStorage.a(new Rotation2(var3, var4), 360.0F, 360.0F, 360.0F, 360.0F, 1, 1, Aura.clientLook.isEnabled());
+                     RotationStorage.a(new Rotation2(var3, var4), 360.0F, 360.0F, 360.0F, 360.0F, 1, 1, Aura.aimThroughCamera());
                   } else {
                      Vec3d var8 = Vec3d.fromPolar(var1.getPitch(), var1.getYaw());
                      Vec3d var9 = var1.getRotationVector();
@@ -1108,7 +1146,7 @@ public class Aura extends Function {
                      Vec3d var5 = var8.normalize().lerp(var9, var8.length());
                      float var6 = (float)MathHelper.wrapDegrees(Math.toDegrees(Math.atan2(var10.z, var10.x)) - 90.0);
                      float var7 = (float)(-Math.toDegrees(Math.atan2(var10.y, Math.hypot(var10.x, var10.z))));
-                     RotationStorage.a(new Rotation2(var6, var7), 360.0F, 360.0F, 360.0F, 360.0F, 1, 1, Aura.clientLook.isEnabled());
+                     RotationStorage.a(new Rotation2(var6, var7), 360.0F, 360.0F, 360.0F, 360.0F, 1, 1, Aura.aimThroughCamera());
                   }
                }
             };
@@ -1142,7 +1180,7 @@ public class Aura extends Function {
                this.funtimeModeActive = true;
             }
 
-            this.funtimeRotation.setVisibleAim(clientLook.isEnabled());
+            this.funtimeRotation.setVisibleAim(aimThroughCamera());
             this.funtimeRotation.a(this.j(this.target));
             var1 = this.funtimeRotation;
          } else if (this.rotationType.isSelected("Sloth")) {
@@ -1169,7 +1207,7 @@ public class Aura extends Function {
             this.neuroRotation.setSpeed(this.neuroSpeed.getFloatValue());
             this.neuroRotation.setFov(this.neuroFov.getFloatValue());
             this.neuroRotation.setSmooth(this.neuroSmooth.getFloatValue());
-            this.neuroRotation.setVisibleAim(clientLook.isEnabled());
+            this.neuroRotation.setVisibleAim(aimThroughCamera());
             var1 = this.neuroRotation;
          } else if (this.rotationType.isSelected("SpookyTime")) {
             if (!this.spookyTimeModeActive) {
@@ -1179,7 +1217,7 @@ public class Aura extends Function {
 
             this.spookyTimeRotation.setSpeed(this.spookySpeed.getFloatValue());
             this.spookyTimeRotation.setMicro(this.spookyMicro.isEnabled());
-            this.spookyTimeRotation.setVisibleAim(clientLook.isEnabled());
+            this.spookyTimeRotation.setVisibleAim(aimThroughCamera());
             var1 = this.spookyTimeRotation;
          } else if (this.rotationType.isSelected("SpookyNew")) {
             if (!this.spookyNewModeActive) {
@@ -1188,7 +1226,7 @@ public class Aura extends Function {
             }
 
             this.spookyNewRotation.setSpeed(this.spookyNewSpeed.getFloatValue());
-            this.spookyNewRotation.setVisibleAim(clientLook.isEnabled());
+            this.spookyNewRotation.setVisibleAim(aimThroughCamera());
             var1 = this.spookyNewRotation;
          } else if (this.rotationType.isSelected("SpookyTest")) {
             if (!this.spookyTestModeActive) {
@@ -1197,7 +1235,7 @@ public class Aura extends Function {
             }
 
             this.spookyTestRotation.setSpeed(this.spookyTestSpeed.getFloatValue());
-            this.spookyTestRotation.setVisibleAim(clientLook.isEnabled());
+            this.spookyTestRotation.setVisibleAim(aimThroughCamera());
             var1 = this.spookyTestRotation;
          } else if (this.rotationType.isSelected("TestNerv")) {
             if (!this.testNervModeActive) {
@@ -1211,7 +1249,7 @@ public class Aura extends Function {
                this.skyTimeModeActive = true;
             }
 
-            this.skyTimeRotation.setVisibleAim(!this.skyTimeFreeCam.isEnabled() && clientLook.isEnabled());
+            this.skyTimeRotation.setVisibleAim(!this.skyTimeFreeCam.isEnabled() && aimThroughCamera());
             this.skyTimeRotation.setFov(this.skyTimeFov.getFloatValue());
             this.skyTimeRotation.setSpeed(this.skyTimeSpeed.getFloatValue());
             this.skyTimeRotation.setJitter(this.skyTimeJitter.isEnabled());
@@ -1254,7 +1292,7 @@ public class Aura extends Function {
                   float var12 = var9 ? Math.max(55.0F, Math.min(110.0F, Math.max(18.0F, var8 * 1.35F))) : (var2 ? 18.0F : 9.0F);
                   float var13 = var9 ? var11 : (var2 ? 18.0F : 9.0F);
                   float var14 = var9 ? var12 : (var2 ? 14.0F : 7.0F);
-                  RotationStorage.a(var10, var11, var12, var13, var14, 1, 1, Aura.clientLook.isEnabled());
+                  RotationStorage.a(var10, var11, var12, var13, var14, 1, 1, Aura.aimThroughCamera());
                }
             };
          } else {
@@ -1263,7 +1301,7 @@ public class Aura extends Function {
                @Override
                public void a(LivingEntity var1) {
                   Aura.this.currentRotations = new Vec2f(mc.player.getYaw(), mc.player.getPitch());
-                  RotationStorage.a(new Rotation2(var5.x, var5.y), 360.0F, 360.0F, 360.0F, 360.0F, 1, 1, Aura.clientLook.isEnabled());
+                  RotationStorage.a(new Rotation2(var5.x, var5.y), 360.0F, 360.0F, 360.0F, 360.0F, 1, 1, Aura.aimThroughCamera());
                }
             };
          }
@@ -1817,7 +1855,7 @@ public class Aura extends Function {
          float var2 = this.rotationType.isSelected("Legit") ? Math.min(this.range.getFloatValue(), 3.0F) : this.range.getFloatValue();
          if (this.rotationType.isSelected("NoRotate")) {
             return this.throughWalls.isEnabled() || this.c(var1);
-         } else if (!this.rotationType.isSelected("Legit") && !clientLook.isEnabled()) {
+         } else if (!this.rotationType.isSelected("Legit") && !aimThroughCamera()) {
             return this.hasServerRotation
                ? this.p(this.lastServerYaw, this.lastServerPitch, var1, var2)
                : this.p(mc.player.getYaw(), mc.player.getPitch(), var1, var2);
@@ -2250,6 +2288,10 @@ public class Aura extends Function {
       this.hadTarget = false;
       this.prevAuraPlayerYaw = Float.NaN;
       this.B();
+      if (!RotationStorage.isAimHeld()) {
+         RotationStorage.releaseAim();
+      }
+
       this.resetCritState();
       if (this.target != null) {
          this.backTimer.a();
@@ -2301,7 +2343,10 @@ public class Aura extends Function {
       }
 
       if (this.rotationType.isSelected("Legit")) {
-         clientLook.setValue(true);
+         if (!this.quietAim.isEnabled()) {
+            clientLook.setValue(true);
+         }
+
          FreeLookStorage.a(false);
       }
 

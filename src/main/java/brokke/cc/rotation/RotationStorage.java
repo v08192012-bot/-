@@ -1,12 +1,10 @@
 package brokke.cc.rotation;
 
 import brokke.cc.core.FreeLookStorage;
-import brokke.cc.module.combat.Aura;
 import brokke.cc.system.events.EventBus;
 import brokke.cc.system.events.EventHandler;
 import brokke.cc.system.events.impl.UpdateEvent;
 import brokke.cc.util.GCDUtil;
-import java.util.concurrent.ThreadLocalRandom;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.math.MathHelper;
 
@@ -17,8 +15,25 @@ public class RotationStorage {
     * «телепорт прицела» и кикают BadPackets. 32°/тик ≈ 640°/с — верх человеческого флика.
     */
    private static final float MAX_YAW_STEP = 32.0F;
-   private static final float MAX_PITCH_STEP = 22.0F;
+   private static final float MAX_PITCH_STEP = 26.0F;
    private static final float PITCH_LIMIT = 89.5F;
+   /** Внешний модуль (WindHop) ведёт наводку сам: авто-отпускание камеры не срабатывает. */
+   private static int aimHold;
+
+   public static void holdAim() {
+      aimHold++;
+   }
+
+   public static void releaseHold() {
+      if (aimHold > 0) {
+         aimHold--;
+      }
+   }
+
+   public static boolean isAimHeld() {
+      return aimHold > 0;
+   }
+
    public static RotationStorage instance = new RotationStorage();
    private static boolean registered;
    private RotationStorage.a currentTask = RotationStorage.a.IDLE;
@@ -61,6 +76,21 @@ public class RotationStorage {
    }
 
    /**
+    * Полный сброс наводки: задача, приоритет, цель и тихий режим камеры.
+    * Нужен, когда аура отпускает цель или выключается: иначе «тихая» камера
+    * оставалась висеть, и взгляд переставал реагировать на мышь.
+    */
+   public static void releaseAim() {
+      RotationStorage var0 = a();
+      var0.currentTask = RotationStorage.a.IDLE;
+      var0.currentPriority = 0;
+      var0.targetRotation = null;
+      var0.clientLook = true;
+      var0.idleTicks = 0;
+      FreeLookStorage.restore();
+   }
+
+   /**
     * Сбросить приоритет текущей задачи, не трогая цель и камеру.
     * Нужно модулям, которые на время забирают наводку выше ауры: иначе после них
     * высокий приоритет остался бы висеть и блокировал ауру.
@@ -93,32 +123,13 @@ public class RotationStorage {
       return this.currentPitchReturnSpeed;
    }
 
-   private void l() {
-      Rotation2 var1 = new Rotation2(FreeLookStorage.getFreeYaw(), FreeLookStorage.getFreePitch());
-      Aura var2 = Aura.INSTANCE;
-      if (var2 != null && var2.l() && var2.rotationType.isSelected("AimAssist")) {
-         var2.getAimAssistRotation().b(var1.getYaw(), var1.getPitch());
-         if (var2.getAimAssistRotation().c(var1.getYaw(), var1.getPitch())) {
-            this.j();
-         }
-      } else {
-         ThreadLocalRandom var3 = ThreadLocalRandom.current();
-         float var4 = this.currentYawReturnSpeed * (0.6F + var3.nextFloat() * 0.7F);
-         float var5 = this.currentPitchReturnSpeed * (0.55F + var3.nextFloat() * 0.75F);
-         if (this.a(var1, var4, var5)) {
-            this.j();
-         }
-      }
-   }
-
    @EventHandler
    public void onEventTick(UpdateEvent var1) {
-      if (this.currentTask.equals(RotationStorage.a.AIM) && this.idleTicks > this.currentTimeout) {
-         this.currentTask = RotationStorage.a.RESET;
-      }
-
-      if (this.currentTask.equals(RotationStorage.a.RESET) && mc.currentScreen == null) {
-         this.l();
+      if (aimHold == 0 && this.currentTask.equals(RotationStorage.a.AIM) && this.idleTicks > this.currentTimeout) {
+         // Наводка закончилась — сразу возвращаем камеру игроку. Раньше задача
+         // уходила в RESET, доворачивала ИГРОКА тиками и на экране с открытым GUI
+         // не работала вовсе: камера выглядела зависшей.
+         releaseAim();
       }
 
       this.idleTicks++;
@@ -239,45 +250,19 @@ public class RotationStorage {
    }
 
    public void j() {
-      boolean var0 = FreeLookStorage.isSilent();
-      if (FreeLookStorage.isActive() && mc.player != null) {
-         float var1 = Math.abs(MathHelper.wrapDegrees(FreeLookStorage.getFreeYaw() - mc.player.getYaw()));
-         float var2 = Math.abs(FreeLookStorage.getFreePitch() - mc.player.getPitch());
-         boolean var3 = var0 && this.currentYawReturnSpeed > 0.0F && this.currentPitchReturnSpeed > 0.0F;
-         if (var3 && (var1 > 0.6F || var2 > 0.6F)) {
-            // Не телепортируем прицел назад (сервер видит мгновенный разворот — badpackets):
-            // доворачиваем плавно, как обычный возврат взгляда.
-            this.currentTask = RotationStorage.a.RESET;
-            this.currentPriority = 0;
-            this.targetRotation = new Rotation2(FreeLookStorage.getFreeYaw(), FreeLookStorage.getFreePitch());
-            this.idleTicks = 0;
-            return;
-         }
-
-         float g = GCDUtil.a();
-         float yawDelta = MathHelper.wrapDegrees(FreeLookStorage.getFreeYaw() - mc.player.getYaw());
-         float pitchDelta = MathHelper.clamp(FreeLookStorage.getFreePitch() - mc.player.getPitch(), -pitchLimit(), pitchLimit());
-         if (g > 1.0E-5F) {
-            // На сетку сенсы кладём ДЕЛЬТУ, а не абсолютный угол: абсолютный сдвиг
-            // на пол-кванта — это ровно тот «неровный» шаг, который ловит GCD-чек
-            yawDelta = Math.round(yawDelta / g) * g;
-            pitchDelta = Math.round(pitchDelta / g) * g;
-         }
-
-         float yaw = mc.player.getYaw() + yawDelta;
-         float pitch = MathHelper.clamp(mc.player.getPitch() + pitchDelta, -pitchLimit(), pitchLimit());
-
-         if (Float.isFinite(yaw) && Float.isFinite(pitch)) {
-            mc.player.setYaw(yaw);
-            mc.player.setPitch(pitch);
-         }
+      if (aimHold > 0) {
+         // Наводку держит внешний модуль (WindHop): камеру не трогаем.
+         return;
       }
 
       this.currentTask = RotationStorage.a.IDLE;
       this.currentPriority = 0;
       this.targetRotation = null;
       this.clientLook = true;
-      FreeLookStorage.a(false);
+      this.idleTicks = 0;
+      // Камера возвращается к игроку плавно и без рывка: молчаливая наводка
+      // больше не «зависает» после боя.
+      FreeLookStorage.restore();
    }
 
    public boolean k() {
@@ -286,7 +271,6 @@ public class RotationStorage {
 
    public enum a {
       AIM,
-      RESET,
       IDLE;
    }
 }

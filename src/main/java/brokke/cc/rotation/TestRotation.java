@@ -84,9 +84,9 @@ public class TestRotation extends RotationsSystem {
             float var14 = this.a(this.smoothPitchStep, var8, var10, false);
             this.smoothYaw = MathHelper.wrapDegrees(this.smoothYaw + var13);
             this.smoothPitch = MathHelper.clamp(this.smoothPitch + var14, -89.0F, 89.0F);
-            RotationStorage.a(new Rotation2(this.smoothYaw, this.smoothPitch), 360.0F, 360.0F, 45.0F, 45.0F, 0, 1, Aura.clientLook.isEnabled());
+            RotationStorage.a(new Rotation2(this.smoothYaw, this.smoothPitch), 360.0F, 360.0F, 45.0F, 45.0F, 0, 1, Aura.aimThroughCamera());
          } else {
-            RotationStorage.a(new Rotation2(var4.x, MathHelper.clamp(var4.y, -89.0F, 89.0F)), 360.0F, 360.0F, 45.0F, 45.0F, 0, 1, Aura.clientLook.isEnabled());
+            RotationStorage.a(new Rotation2(var4.x, MathHelper.clamp(var4.y, -89.0F, 89.0F)), 360.0F, 360.0F, 45.0F, 45.0F, 0, 1, Aura.aimThroughCamera());
          }
       }
    }

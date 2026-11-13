@@ -69,7 +69,7 @@ public class ReallyWorldRotation extends RotationsSystem {
          this.currentYaw = this.currentYaw + GCDUtil2.a(var15 + var10);
          this.currentPitch = MathHelper.clamp(this.currentPitch + GCDUtil2.a(var16 + var11), -90.0F, 90.0F);
          this.rotate = new Vec2f(this.currentYaw, this.currentPitch);
-         RotationStorage.a(new Rotation2(this.currentYaw, this.currentPitch), 360.0F, 360.0F, 360.0F, 360.0F, 1, 5, Aura.clientLook.isEnabled());
+         RotationStorage.a(new Rotation2(this.currentYaw, this.currentPitch), 360.0F, 360.0F, 360.0F, 360.0F, 1, 5, Aura.aimThroughCamera());
       } else {
          this.a();
       }

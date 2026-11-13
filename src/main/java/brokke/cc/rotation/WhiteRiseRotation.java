@@ -126,7 +126,7 @@ public class WhiteRiseRotation extends RotationsSystem {
             var16 = MathHelper.clamp(var16, -89.0F, 89.0F);
             Rotation2 var18 = new Rotation2(var15, var16);
             float var19 = mc.player.isGliding() && var1.isGliding() ? 360.0F : 45.0F;
-            RotationStorage.a(var18, var19, var19, var19, var19, 0, 1, Aura.clientLook.isEnabled());
+            RotationStorage.a(var18, var19, var19, var19, var19, 0, 1, Aura.aimThroughCamera());
             this.rotate = new Vec2f(var18.getYaw(), var18.getPitch());
             this.lastYaw = var18.getYaw();
             this.lastPitch = var18.getPitch();

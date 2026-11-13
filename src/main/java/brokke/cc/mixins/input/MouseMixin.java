@@ -45,10 +45,10 @@ public class MouseMixin {
          this.cursorDeltaY = 0.0;
       } else {
          MinecraftClient var5 = MinecraftClient.getInstance();
-         Aura var6 = Aura.INSTANCE;
-         // «Наводка от первого лица» выключена (или SkyTime со свободной камерой):
-         // аура крутит игрока для сервера, а мышь двигает свободную клиентскую камеру.
-         if (var6 != null && var6.l() && FreeLookStorage.isActive() && var5.currentScreen == null) {
+         // «Тихая» наводка или возврат камеры после неё: игрока крутит аура,
+         // а мышь двигает свободную камеру. Привязки к включённой ауре нет —
+         // иначе после боя с выключенной аурой камера замирала.
+         if (FreeLookStorage.isActive() && var5.currentScreen == null) {
             float var7 = GCDUtil.a();
             FreeLookStorage.setFreeYaw(FreeLookStorage.getFreeYaw() + (float)this.cursorDeltaX * var7);
             FreeLookStorage.setFreePitch(MathHelper.clamp(FreeLookStorage.getFreePitch() + (float)this.cursorDeltaY * var7, -90.0F, 90.0F));
