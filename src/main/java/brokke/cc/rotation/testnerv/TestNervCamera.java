@@ -349,6 +349,13 @@ public final class TestNervCamera {
     */
    @EventHandler(priority = EventPriority.HIGHEST)
    public void onMoveInput(EventMoveInput event) {
+      Aura aura = Aura.INSTANCE;
+      if (aura != null && !aura.testNervKeys.isEnabled()) {
+         // Поправщик отключён вручную: ввод остаётся ровно таким, каким его нажали.
+         this.visibleKeyFix = -1;
+         return;
+      }
+
       TestNervKeyFix network = this.keyFix;
       double[] features = this.lastFeatures;
       this.visibleKeyFix = -1;

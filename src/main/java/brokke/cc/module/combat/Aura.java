@@ -168,6 +168,13 @@ public class Aura extends Function {
    /** TestNerv: доля времени, когда сеть держит прицел на цели (как в Opus). */
    private final FloatSetting testNervHold = new FloatSetting("TestNerv удержание", 50.0F, 0.0F, 100.0F, 5.0F)
       .showWhen(() -> this.rotationType.isSelected("TestNerv"));
+   /**
+    * TestNerv: «поправщик клавиш» из Opus переписывает WASD каждый тик под модель.
+    * По умолчанию включён (поведение ровно как в Opus). Если движение с аурой кажется
+    * дёрганым — выключить: клавиши пойдут как нажаты, наводка не изменится.
+    */
+   public final BooleanSetting testNervKeys = new BooleanSetting("TestNerv поправщик клавиш", true)
+      .showWhen(() -> this.rotationType.isSelected("TestNerv"));
    private LivingEntity target;
    Vec2f currentRotations = new Vec2f(0.0F, 0.0F);
    Vec2f targetRotations = new Vec2f(0.0F, 0.0F);
@@ -339,7 +346,8 @@ public class Aura extends Function {
          this.spookyMicro,
          this.spookyNewSpeed,
          this.spookyTestSpeed,
-         this.testNervHold
+         this.testNervHold,
+         this.testNervKeys
       );
    }
 
