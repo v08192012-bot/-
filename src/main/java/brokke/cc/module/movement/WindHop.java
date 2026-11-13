@@ -29,7 +29,7 @@ public class WindHop extends Function {
    private static final int PHASE_AIM = 1;
    private static final int PHASE_RETURN = 2;
    /** Страховка наводки: даже если взгляд не дошёл вниз, бросаем через столько тиков. */
-   private static final int MAX_AIM_TICKS = 8;
+   private static final int MAX_AIM_TICKS = 10;
    /** Страховка возврата взгляда. */
    private static final int MAX_RETURN_TICKS = 10;
    /** Сколько тиков держим ввод прыжка: переживает задержку планировщика задач. */
@@ -174,7 +174,8 @@ public class WindHop extends Function {
       // Бросаем на СЛЕДУЮЩЕМ тике после готовности прицела: пакет поворота уже ушёл,
       // сервер видит ту же ротацию, что и мы, и бросок не выглядит «телепортом прицела».
       if (this.settleTicks >= 2 || this.phaseTicks >= MAX_AIM_TICKS) {
-         if (mc.player.getPitch() < 45.0F) {
+         // Кривой бросок хуже пропущенного: заряд улетит вперёд и толкнёт игрока назад.
+         if (mc.player.getPitch() < 70.0F) {
             this.cancel();
          } else {
             this.throwCharge();
