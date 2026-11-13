@@ -3,7 +3,10 @@ package brokke.cc.manager;
 import brokke.cc.config.ConfigManager;
 import brokke.cc.core.FakePlayerTickHandler;
 import brokke.cc.core.NeuroRecorder;
+import brokke.cc.cosmetic.CosmeticNet;
+import brokke.cc.cosmetic.RemoteCosmetics;
 import brokke.cc.module.combat.Aura;
+import brokke.cc.module.render.CosmeticSync;
 import brokke.cc.rotation.testnerv.TestNervCamera;
 import brokke.cc.neuro.NeuroModels;
 import brokke.cc.neuro.NeuroTrainer;
@@ -327,6 +330,10 @@ public class CommandManager {
                       break;
                    case "neuro":
                       k(var1);
+                      break;
+                   case "cos":
+                   case "cosmetics":
+                      o();
                       break;
                   default:
                      d("§cНеизвестная команда. §f.help§c — список команд");
@@ -1156,6 +1163,29 @@ public class CommandManager {
       }
    }
 
+   /** Состояние обмена косметикой: включён ли модуль, жив ли канал, кого уже видно. */
+   private static void o() {
+      CosmeticSync var0 = CosmeticSync.k();
+      boolean var1 = var0 != null && var0.isActive();
+      d("§b§lShelka §7» §fСинк косметики");
+      d(" §7Модуль: " + (var1 ? "§aвключён" : "§cвыключен §7(Visuals → CosmeticSync)"));
+      d(" §7Канал: §f" + CosmeticNet.describe());
+      d(" §7Принято игроков: §f" + RemoteCosmetics.size());
+      if (RemoteCosmetics.size() > 0) {
+         StringBuilder var2 = new StringBuilder();
+
+         for (RemoteCosmetics.Entry var4 : RemoteCosmetics.recent(8)) {
+            if (var2.length() > 0) {
+               var2.append("§7, ");
+            }
+
+            var2.append("§f").append(var4.name()).append(" §7(").append(var4.ids().length).append(")");
+         }
+
+         d(" §7Игроки: " + var2);
+      }
+   }
+
    private static void k(String[] var0) {
       if (var0.length < 2) {
          d("§cИспользование: §f.neuro bot | record [минуты] [nobot] | stop | train [эпох] | model | status");
@@ -1337,7 +1367,9 @@ public class CommandManager {
       COMMANDS.put("mine", new CommandManager.b("вскапывание блока по координатам или имени", List.of("<x> <y> <z>", "<блок>", "stop")));
       COMMANDS.put("nav", new CommandManager.b("управление навигацией и рекордером", List.of("status", "record", "stop", "list", "goto", "mine")));
        COMMANDS.put("baritone", new CommandManager.b("управление навигацией Baritone", List.of("status", "record", "stop", "list", "goto", "mine")));
-       COMMANDS.put("neuro", new CommandManager.b("нейросеть: бот, запись датасета, обучение GRU, модель", List.of("bot", "record", "stop", "train", "model", "status", "reset")));
+       COMMANDS.put("cos", new CommandManager.b("состояние синка косметики", List.of("status")));
+      COMMANDS.put("cosmetics", new CommandManager.b("состояние синка косметики", List.of("status")));
+      COMMANDS.put("neuro", new CommandManager.b("нейросеть: бот, запись датасета, обучение GRU, модель", List.of("bot", "record", "stop", "train", "model", "status", "reset")));
       COMMANDS.put("irc", new CommandManager.b("открыть меню IRC и друзей", List.of()));
       COMMANDS.put("gui", new CommandManager.b("режим клик-гуи: cs | panels", List.of("cs", "panels")));
    }

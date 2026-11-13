@@ -49,6 +49,18 @@ public final class RemoteCosmetics {
       return var0 == null ? null : BY_NAME.get(var0.toLowerCase());
    }
 
+   /** Последние записи, свежие первыми: для .cos в чате. */
+   public static java.util.List<RemoteCosmetics.Entry> recent(int var0) {
+      return BY_NAME.values().stream()
+         .sorted(java.util.Comparator.comparingLong(RemoteCosmetics.Entry::receivedAt).reversed())
+         .limit(Math.max(1, var0))
+         .toList();
+   }
+
+   public static int size() {
+      return BY_NAME.size();
+   }
+
    public static void clear() {
       BY_UUID.clear();
       BY_NAME.clear();

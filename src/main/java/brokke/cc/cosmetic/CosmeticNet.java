@@ -43,6 +43,8 @@ public final class CosmeticNet {
    private static volatile Consumer<String> debug;
    private static final java.util.concurrent.ConcurrentLinkedQueue<String> LOG_QUEUE = new java.util.concurrent.ConcurrentLinkedQueue<>();
    private static volatile long lastPublishAt;
+   private static volatile long lastReceiveAt;
+   private static volatile String lastReceiveName = "";
    private static volatile UUID selfUuid;
    private static ExecutorService publisher;
 
@@ -51,6 +53,21 @@ public final class CosmeticNet {
 
    public static boolean isRunning() {
       return RUNNING.get();
+   }
+
+   /** Строка для .cos: жив ли канал и когда был последний чужой маячок. */
+   public static String describe() {
+      if (!RUNNING.get()) {
+         return "выключен";
+      }
+
+      long var0 = lastReceiveAt;
+      if (var0 == 0L) {
+         return "подключён к " + baseUrl + " / " + topic + ", пока ничего не принял";
+      }
+
+      long var1 = Math.max(0L, (System.currentTimeMillis() - var0) / 1000L);
+      return "подключён к " + baseUrl + " / " + topic + ", последний маячок " + lastReceiveName + " " + var1 + " с назад";
    }
 
    public static synchronized void start(String var0, String var1, Consumer<String> var2) {
@@ -301,6 +318,8 @@ public final class CosmeticNet {
          }
 
          RemoteCosmetics.apply(var3, var2, var10);
+         lastReceiveAt = System.currentTimeMillis();
+         lastReceiveName = var2;
          log("получили косметику: " + var2 + " → " + var10.length);
       } catch (Exception var17) {
       }
