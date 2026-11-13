@@ -1,6 +1,7 @@
 package brokke.cc.rotation;
 
 import brokke.cc.core.FreeLookStorage;
+import brokke.cc.module.combat.Aura;
 import brokke.cc.system.events.EventBus;
 import brokke.cc.system.events.EventHandler;
 import brokke.cc.system.events.impl.UpdateEvent;
@@ -126,13 +127,26 @@ public class RotationStorage {
    @EventHandler
    public void onEventTick(UpdateEvent var1) {
       if (aimHold == 0 && this.currentTask.equals(RotationStorage.a.AIM) && this.idleTicks > this.currentTimeout) {
-         // Наводка закончилась — сразу возвращаем камеру игроку. Раньше задача
-         // уходила в RESET, доворачивала ИГРОКА тиками и на экране с открытым GUI
-         // не работала вовсе: камера выглядела зависшей.
+         // Наводка закончилась: снимаем задачу и приоритет, но камеру не отпускаем
+         // сразу — пока аура держит цель, «тихий» взгляд остаётся свободным.
+         this.currentTask = RotationStorage.a.IDLE;
+         this.currentPriority = 0;
+         this.targetRotation = null;
+      }
+
+      // Никто больше не ведёт наводку, а камера всё ещё «чужая»: возвращаем её игроку
+      // (только картинку, без поворота игрока). Это страховка от зависшей камеры.
+      if (aimHold == 0 && FreeLookStorage.isSilent() && !auraAiming()) {
          releaseAim();
       }
 
       this.idleTicks++;
+   }
+
+   /** Аура включена и прямо сейчас ведёт цель — её «тихую» камеру трогать нельзя. */
+   private static boolean auraAiming() {
+      Aura var0 = Aura.INSTANCE;
+      return var0 != null && var0.l() && var0.getTarget() != null;
    }
 
    public static void a(Rotation2 var0, float var1, float var2, float var3, float var4, int var5, int var6, boolean var7) {

@@ -4,8 +4,6 @@ import brokke.cc.system.events.EventBus;
 import brokke.cc.system.events.EventHandler;
 import brokke.cc.system.events.EventPriority;
 import brokke.cc.system.events.impl.EventRotation;
-import brokke.cc.system.events.impl.UpdateEvent;
-import brokke.cc.util.GCDUtil;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.math.MathHelper;
 
@@ -25,17 +23,15 @@ public class FreeLookStorage {
     */
    private static boolean silent;
    /**
-    * Возврат камеры игроку после «тихой» наводки. Камера всё ещё показывает freeYaw
-    * (её можно свободно крутить мышью), а игрок плавно доворачивается туда же.
-    * Как только углы совпали — камера снова настоящая, и рывка не видно.
+    * Затухание картинки при выходе из «тихой» наводки. Это ЧИСТО РЕНДЕР: игрок,
+    * его поворот и движение не трогаются вообще — WASD продолжает работать как обычно.
+    * Нужно лишь чтобы камера не щёлкнула из свободного взгляда в настоящий.
     */
    private static boolean releasing;
    private static long releaseStartMs;
-   /** Страховка от вечного возврата (игрок умер, мир сменился и т.п.). */
-   private static final long RELEASE_TIMEOUT_MS = 700L;
-   /** Максимальный шаг доворота игрока за тик — как у обычного человеческого взгляда. */
-   private static final float RELEASE_YAW_STEP = 24.0F;
-   private static final float RELEASE_PITCH_STEP = 18.0F;
+   private static float releaseFromYaw;
+   private static float releaseFromPitch;
+   private static final long RELEASE_MS = 130L;
 
    public static FreeLookStorage a() {
       if (!registered) {
@@ -55,7 +51,7 @@ public class FreeLookStorage {
       a();
       if (var0) {
          if (!silent) {
-            // Вход в «тихий» режим. Если камера ещё возвращается после прошлой наводки,
+            // Вход в «тихий» режим. Если камера ещё доезжает после прошлой наводки,
             // НЕ переставляем её на взгляд игрока: взгляд игрока — это прицел ауры,
             // и камера прыгнула бы туда рывком.
             if (!releasing && mc.player != null) {
@@ -79,32 +75,28 @@ public class FreeLookStorage {
    }
 
    /**
-    * Вернуть камеру игроку после «тихой» наводки. Камера остаётся на месте и продолжает
-    * слушаться мыши, а игрок доворачивается к ней сам — так камера снова становится
-    * настоящей, но на экране ничего не дёргается.
+    * Закончить «тихую» наводку. Камера мгновенно снова настоящая (мышь, WASD, прицел —
+    * всё как обычно), но первые ~130 мс картинка плавно доезжает до настоящего взгляда,
+    * чтобы не было резкого щелчка. Игрок при этом не поворачивается ни на градус.
     */
    public static void restore() {
       a();
-      if (mc.player == null) {
-         active = false;
-         silent = false;
-         releasing = false;
+      if (!silent) {
          return;
       }
 
       silent = false;
-      tracked = true;
-      if (active) {
-         if (!releasing) {
-            releasing = true;
-            releaseStartMs = System.currentTimeMillis();
-         }
-      } else {
-         releasing = false;
+      if (active && mc.player != null) {
+         releaseFromYaw = freeYaw;
+         releaseFromPitch = freePitch;
+         releaseStartMs = System.currentTimeMillis();
+         releasing = true;
+         active = false;
+         tracked = false;
       }
    }
 
-   /** Камера ещё доезжает до игрока: её нельзя перезаписывать взглядом сущности. */
+   /** Камера ещё доезжает до настоящего взгляда (только картинка). */
    public static boolean isReleasing() {
       return releasing;
    }
@@ -115,8 +107,8 @@ public class FreeLookStorage {
          silent = false;
       }
 
-      // Любое прямое включение/выключение свободной камеры отменяет плавный возврат:
-      // им управляет тот модуль, который сейчас ведёт камеру (FreeLook, AutoExplosion).
+      // Любое прямое включение свободной камеры отменяет затухание:
+      // камерой управляет тот модуль, который её включил (FreeLook, AutoExplosion).
       releasing = false;
       if (var0 && !active) {
          // Важно: при включении НЕ берём yaw игрока — в этот момент он уже может быть
@@ -153,62 +145,33 @@ public class FreeLookStorage {
       freePitch = MathHelper.clamp(freePitch + (float)(var2 * 0.15), -90.0F, 90.0F);
    }
 
-   /** Доворот игрока к свободному взгляду: пакеты уходят обычным движением, камера стоит. */
-   @EventHandler
-   public void onTick(UpdateEvent var1) {
-      if (!releasing) {
-         return;
-      }
-
-      if (mc.player == null || mc.world == null) {
-         releasing = false;
-         active = false;
-         return;
-      }
-
-      if (mc.player.isRemoved() || mc.player.isDead()) {
-         releasing = false;
-         active = false;
-         return;
-      }
-
-      if (mc.currentScreen != null) {
-         // В открытом GUI игрок не крутит прицел — доворот продолжим после закрытия.
-         return;
-      }
-
-      float yawDelta = MathHelper.wrapDegrees(freeYaw - mc.player.getYaw());
-      float pitchDelta = freePitch - mc.player.getPitch();
-      boolean arrived = Math.abs(yawDelta) <= 0.4F && Math.abs(pitchDelta) <= 0.4F;
-      if (arrived || System.currentTimeMillis() - releaseStartMs > RELEASE_TIMEOUT_MS) {
-         // Углы совпали — отдаём камеру игроку. Рывка нет: смотрим туда же.
-         mc.player.setYaw(freeYaw);
-         mc.player.setPitch(MathHelper.clamp(freePitch, -90.0F, 90.0F));
-         active = false;
-         releasing = false;
-         tracked = true;
-         return;
-      }
-
-      float stepYaw = MathHelper.clamp(yawDelta, -RELEASE_YAW_STEP, RELEASE_YAW_STEP);
-      float stepPitch = MathHelper.clamp(pitchDelta, -RELEASE_PITCH_STEP, RELEASE_PITCH_STEP);
-      float quantum = GCDUtil.a();
-      if (quantum > 1.0E-5F) {
-         // Шаг кладём на сетку сенсы: иначе античиты видят «кривой» инкремент поворота.
-         stepYaw = Math.round(stepYaw / quantum) * quantum;
-         stepPitch = Math.round(stepPitch / quantum) * quantum;
-      }
-
-      mc.player.setYaw(mc.player.getYaw() + stepYaw);
-      mc.player.setPitch(MathHelper.clamp(mc.player.getPitch() + stepPitch, -90.0F, 90.0F));
-   }
-
    @EventHandler(priority = EventPriority.HIGHEST)
    public void onRotation(EventRotation var1) {
       if (active) {
          var1.setYaw(freeYaw);
          var1.setPitch(freePitch);
-      } else if (mc.player != null && !silent) {
+         return;
+      }
+
+      if (releasing && mc.player != null) {
+         float var2 = MathHelper.clamp((float)(System.currentTimeMillis() - releaseStartMs) / RELEASE_MS, 0.0F, 1.0F);
+         float var3 = var2 * var2 * (3.0F - 2.0F * var2);
+         float var4 = releaseFromYaw + MathHelper.wrapDegrees(var1.getYaw() - releaseFromYaw) * var3;
+         float var5 = releaseFromPitch + (var1.getPitch() - releaseFromPitch) * var3;
+         var1.setYaw(var4);
+         var1.setPitch(var5);
+         // Руки рисуются по этим углам: держим их ровно там же, где камера.
+         freeYaw = var4;
+         freePitch = var5;
+         tracked = true;
+         if (var2 >= 1.0F) {
+            releasing = false;
+         }
+
+         return;
+      }
+
+      if (mc.player != null && !silent) {
          freeYaw = var1.getYaw();
          freePitch = var1.getPitch();
          tracked = true;

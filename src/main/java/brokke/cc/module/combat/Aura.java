@@ -432,15 +432,17 @@ public class Aura extends Function {
          return;
       }
 
-      if (this.moveFix.getSelectedIndex() == 0) {
+      int var0 = this.moveFix.getSelectedIndex();
+      if (var0 == 0 && !FreeLookStorage.isActive()) {
          return;
       }
 
-      if (this.moveFix.getSelectedIndex() == 1) {
-         // «Свободная»: ввод всегда доворачивается на разницу между камерой и игроком,
-         // непрерывно, без подбора из 8 направлений. Старый MovingUtil.a() округлял ввод
-         // до ближайшей диагонали, и при плавной наводке персонаж «залипал» и дёргался.
-         // Делаем это и без цели: пока камера возвращается, ввод тоже должен быть согласован.
+      if (var0 == 0 || var0 == 1) {
+         // «Свободная» (и «Нет» при тихой наводке): ввод доворачивается на разницу между
+         // камерой и игроком, непрерывно, без подбора из 8 направлений. Старый MovingUtil.a()
+         // округлял ввод до ближайшей диагонали, и при плавной наводке персонаж «залипал».
+         // При тихой наводке это обязательно даже для «Нет»: иначе W идёт туда, куда
+         // целится аура, а не туда, куда смотрит камера — движение кажется сломанным.
          float var2 = FreeLookStorage.isActive()
             ? MathHelper.wrapDegrees(FreeLookStorage.getFreeYaw() - mc.player.getYaw())
             : 0.0F;
@@ -550,7 +552,7 @@ public class Aura extends Function {
    public void onTick(UpdateEvent var1) {
       if (mc.player != null && mc.world != null) {
          this.lastYaw++;
-         if (!FreeLookStorage.isActive() && !Float.isNaN(this.prevAuraPlayerYaw)) {
+         if (!FreeLookStorage.isActive() && !FreeLookStorage.isReleasing() && !Float.isNaN(this.prevAuraPlayerYaw)) {
             float var2 = MathHelper.wrapDegrees(mc.player.getYaw() - this.prevAuraPlayerYaw) - this.lastAppliedAuraYawDelta;
             float var3 = mc.player.getPitch() - this.prevAuraPlayerPitch - this.lastAppliedAuraPitchDelta;
             if (Math.abs(var2) > 0.01F || Math.abs(var3) > 0.01F) {
