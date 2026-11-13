@@ -180,6 +180,11 @@ public final class CosmeticNet {
             if (var8.statusCode() != 200) {
                log("подписка не прошла: HTTP " + var8.statusCode());
                var6 = true;
+               if (var8.statusCode() == 404 || var8.statusCode() == 400 || var8.statusCode() == 416) {
+                  // Идентификатор сообщения уже выпал из кеша релея: начинаем окно заново,
+                  // иначе подписка зациклится на несуществующем since.
+                  lastId = "";
+               }
             } else {
                var0 = 1000;
                try (Stream<String> var9 = var8.body()) {
