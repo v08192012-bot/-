@@ -1,5 +1,6 @@
 package brokke.cc.module.render;
 
+import brokke.cc.cosmetic.CosmeticNet;
 import brokke.cc.cosmetic.LocalCosmetics;
 import brokke.cc.cosmetic.RemoteCosmetics;
 import brokke.cc.manager.CommandManager;
@@ -10,6 +11,7 @@ import brokke.cc.module.NewFunction;
 import brokke.cc.setting.BindSetting;
 import brokke.cc.setting.BooleanSetting;
 import brokke.cc.setting.FloatSetting;
+import brokke.cc.setting.TextSetting;
 import brokke.cc.system.events.EventHandler;
 import brokke.cc.system.events.impl.KeyEvent;
 import brokke.cc.system.events.impl.UpdateEvent;
@@ -24,12 +26,14 @@ import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.text.Text;
 
 /**
- * Обмен косметикой между юзерами чита через обычный чат сервера.
+ * Обмен косметикой между юзерами чита.
  *
- * Сервер не форвардит клиентские пакеты другим клиентам, поэтому единственный
- * канал, который виден всем и которым управляет клиент, — сообщение в общий чат.
- * Шлём короткий base64-маячок: при входе в мир, при смене косметики и в ответ
- * на маячок нового игрока. Сами маячки на клиентах чита скрываются из чата.
+ * Основной транспорт — HTTPS-релей (ntfy.sh по умолчанию): подписка на общий канал,
+ * публикация короткого JSON с индексами косметики. Ни аккаунта, ни своего хостинга
+ * не нужно, и в чат сервера не уходит ничего — важно, потому что там кулдаун 120 с.
+ *
+ * Чат остался фолбэком (по умолчанию выключен): на серверах без кулдауна или когда
+ * релей недоступен.
  */
 @NewFunction(name = "CosmeticSync", description = "Показывает косметику других юзеров чита", category = Category.RENDER)
 public class CosmeticSync extends Function {
@@ -37,15 +41,18 @@ public class CosmeticSync extends Function {
    private static final int PROTOCOL = 1;
    private static final int JOIN_DELAY_TICKS = 40;
    private static final long REPLY_THROTTLE_MS = 15000L;
+   private static final String DEFAULT_SERVER = "https://ntfy.sh";
+   private static final String DEFAULT_CHANNEL = "shelka-cos-beta-2026";
 
    private static CosmeticSync INSTANCE;
 
    private final BindSetting sendBind = new BindSetting("Отправить косметику", -1);
-   private final BooleanSetting hideBeacons = new BooleanSetting("Скрывать служебные сообщения", true);
+   private final TextSetting server = new TextSetting("Сервер синка", DEFAULT_SERVER);
+   private final TextSetting channel = new TextSetting("Ключ канала", DEFAULT_CHANNEL);
+   private final FloatSetting heartbeat = new FloatSetting("Повторять, сек", 240.0F, 0.0F, 900.0F, 30.0F);
    private final BooleanSetting showOthers = new BooleanSetting("Косметика других юзеров", true);
-   private final BooleanSetting autoReply = new BooleanSetting("Отвечать новым игрокам", true);
-   private final BooleanSetting onJoin = new BooleanSetting("Присылать при входе", true);
-   private final FloatSetting repeatSeconds = new FloatSetting("Повторять, сек", 0.0F, 0.0F, 300.0F, 5.0F);
+   private final BooleanSetting viaChat = new BooleanSetting("Фолбэк через чат (кулдаун сервера)", false);
+   private final BooleanSetting hideBeacons = new BooleanSetting("Скрывать служебные сообщения", true);
    private final BooleanSetting debug = new BooleanSetting("Отладка", false);
 
    private final Map<String, Long> lastReplyAt = new ConcurrentHashMap<>();
@@ -54,16 +61,21 @@ public class CosmeticSync extends Function {
    private int joinTicks = -1;
    private Object lastWorld;
    private String lastSignature = "";
-   private long lastSendAt;
+   private String lastServer = "";
+   private String lastChannel = "";
+   private long lastPublishAt;
+   /** Ждём задержку входа, чтобы отправить чат-маячок ровно один раз. */
+   private boolean chatBeaconPending;
 
    public CosmeticSync() {
       this.addSettings(
          this.sendBind,
-         this.hideBeacons,
+         this.server,
+         this.channel,
+         this.heartbeat,
          this.showOthers,
-         this.autoReply,
-         this.onJoin,
-         this.repeatSeconds,
+         this.viaChat,
+         this.hideBeacons,
          this.debug
       );
    }
@@ -84,16 +96,21 @@ public class CosmeticSync extends Function {
 
    @Override
    public void onEnable() {
-      this.joinTicks = this.onJoin.isToggled() ? JOIN_DELAY_TICKS : -1;
-      this.lastWorld = mc.world;
-      this.lastSignature = signature();
-      this.lastSendAt = 0L;
+      this.joinTicks = JOIN_DELAY_TICKS;
+      this.lastPublishAt = 0L;
       this.lastReplyAt.clear();
       this.replyDueAt.clear();
+      CosmeticNet.setSelf(mc.player == null ? null : mc.player.getUuid());
+      this.restartNet();
+      this.publishNow();
+      this.chatBeaconPending = true;
+      this.lastWorld = mc.world;
+      this.lastSignature = signature();
    }
 
    @Override
    public void onDisable() {
+      CosmeticNet.stop();
       RemoteCosmetics.clear();
       this.lastReplyAt.clear();
       this.replyDueAt.clear();
@@ -105,65 +122,114 @@ public class CosmeticSync extends Function {
    @EventHandler
    public void onKey(KeyEvent var1) {
       if (var1.getAction() == 1 && mc.currentScreen == null && this.sendBind.matchesKey(var1.getKey())) {
-         this.broadcast("вручную");
+         this.publishNow();
+         if (this.viaChat.isToggled()) {
+            this.broadcastChat("вручную");
+         }
       }
+   }
+
+   private void restartNet() {
+      this.lastServer = this.server.getValue();
+      this.lastChannel = this.channel.getValue();
+      java.util.function.Consumer<String> var1 = this.debug.isToggled() ? ignored -> { } : null;
+      CosmeticNet.start(this.lastServer, this.lastChannel, var1);
    }
 
    @EventHandler
    public void onUpdate(UpdateEvent var1) {
-      if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) {
+      if (mc.player == null || mc.world == null) {
          this.lastWorld = null;
          return;
       }
 
+      CosmeticNet.setSelf(mc.player.getUuid());
+      if (!this.lastServer.equals(this.server.getValue()) || !this.lastChannel.equals(this.channel.getValue())) {
+         this.restartNet();
+      }
+
+      if (this.debug.isToggled()) {
+         // Сетевые события копятся в очереди; в чат пишем только из тика.
+         String var20;
+         while ((var20 = CosmeticNet.pollLog()) != null) {
+            CommandManager.d("§7[CosmeticSync] §f" + var20);
+         }
+      }
+
       if (this.lastWorld != mc.world) {
-         // Сменили мир/сервер: старые записи невалидны, а новый сервер нас ещё не видел.
+         // Сменили мир/сервер: чужие записи невалидны, а новый сервер нас ещё не видел.
          this.lastWorld = mc.world;
          RemoteCosmetics.clear();
          this.replyDueAt.clear();
          this.lastReplyAt.clear();
          this.lastSignature = signature();
-         this.joinTicks = this.onJoin.isToggled() ? JOIN_DELAY_TICKS : -1;
+         this.joinTicks = JOIN_DELAY_TICKS;
+         this.publishNow();
+         this.chatBeaconPending = true;
          return;
       }
 
       if (this.joinTicks > 0) {
          this.joinTicks--;
-         if (this.joinTicks == 0) {
-            this.broadcast("вход в мир");
+         if (this.joinTicks == 0 && this.chatBeaconPending && this.viaChat.isToggled()) {
+            this.chatBeaconPending = false;
+            this.broadcastChat("вход в мир");
          }
       }
 
       String var2 = signature();
       if (!var2.equals(this.lastSignature)) {
-         // Игрок поменял косметику — сообщаем сразу, это одно сообщение на действие.
          this.lastSignature = var2;
-         this.broadcast("смена косметики");
+         this.publishNow();
+         if (this.viaChat.isToggled()) {
+            this.broadcastChat("смена косметики");
+         }
       }
 
       long var3 = System.currentTimeMillis();
-      if (this.repeatSeconds.getFloatValue() > 0.0F && var3 - this.lastSendAt >= (long)(this.repeatSeconds.getFloatValue() * 1000.0F)) {
-         this.broadcast("по таймеру");
+      float var5 = this.heartbeat.getFloatValue();
+      if (var5 > 0.0F && var3 - this.lastPublishAt >= (long)(var5 * 1000.0F)) {
+         this.publishNow();
       }
 
-      // Ответы шлём по одному и не чаще раза в 1.5 с: иначе при заходе пачки
-      // друзей в чат улетал бы залп маячков.
-      if (var3 - this.lastSendAt < 1500L) {
+      if (!this.viaChat.isToggled() || var3 - this.lastPublishAt < 1500L) {
          return;
       }
 
-      for (Map.Entry<String, Long> var5 : this.replyDueAt.entrySet()) {
-         if (var3 >= var5.getValue()) {
-            this.replyDueAt.remove(var5.getKey());
-            this.broadcast("ответ " + var5.getKey());
+      for (Map.Entry<String, Long> var6 : this.replyDueAt.entrySet()) {
+         if (var3 >= var6.getValue()) {
+            this.replyDueAt.remove(var6.getKey());
+            this.broadcastChat("ответ " + var6.getKey());
             break;
          }
       }
    }
 
+   private void publishNow() {
+      if (mc.player == null || mc.player.getGameProfile() == null) {
+         return;
+      }
+
+      String var1 = mc.player.getGameProfile().name();
+      if (var1 == null || var1.isEmpty()) {
+         return;
+      }
+
+      List<Integer> var2 = LocalCosmetics.e();
+      int[] var3 = new int[var2.size()];
+
+      for (int var4 = 0; var4 < var2.size(); var4++) {
+         var3[var4] = var2.get(var4);
+      }
+
+      CosmeticNet.publish(var1, mc.player.getUuid(), LocalCosmetics.a(), var3, true);
+      this.lastPublishAt = System.currentTimeMillis();
+      this.lastSignature = signature();
+   }
+
    /**
-    * Разбор входящего сообщения чата. Возвращает true, если строку надо скрыть —
-    * это наш маячок, и юзеру он в чате не нужен.
+    * Разбор входящего сообщения чата (фолбэк-маячок). Возвращает true, если строку
+    * надо скрыть — это наш служебный маячок, юзеру он в чате не нужен.
     */
    public static boolean handleChatMessage(Text var0) {
       CosmeticSync var1 = k();
@@ -187,19 +253,15 @@ public class CosmeticSync extends Function {
          return false;
       }
 
-      boolean var6 = var1.accept(var4.substring(0, var5));
+      boolean var6 = var1.acceptChat(var4.substring(0, var5));
       return var6 && var1.hideBeacons.isToggled();
    }
 
-   private boolean accept(String var1) {
+   private boolean acceptChat(String var1) {
       try {
          String var2 = new String(Base64.getUrlDecoder().decode(var1), StandardCharsets.UTF_8);
          String[] var3 = var2.split("\\|", -1);
-         if (var3.length < 4) {
-            return false;
-         }
-
-         if (Integer.parseInt(var3[0]) != PROTOCOL) {
+         if (var3.length < 4 || Integer.parseInt(var3[0]) != PROTOCOL) {
             return false;
          }
 
@@ -212,16 +274,11 @@ public class CosmeticSync extends Function {
          int var6 = Math.min(var4, LocalCosmetics.a());
          int[] var7 = var3[3].isEmpty() ? new int[0] : parseIds(var3[3], var6);
          UUID var8 = this.resolveUuid(var5);
-
          if (mc.player != null && var5.equalsIgnoreCase(mc.player.getGameProfile().name())) {
             return true;
          }
 
          RemoteCosmetics.apply(var8, var5, var7);
-         if (this.debug.isToggled()) {
-            CommandManager.d("§7[CosmeticSync] §f" + var5 + " §7→ косметика §f" + var7.length);
-         }
-
          this.scheduleReply(var5);
          return true;
       } catch (Exception var9) {
@@ -262,12 +319,8 @@ public class CosmeticSync extends Function {
       return null;
    }
 
-   /** Новый игрок прислал маячок — отвечаем один раз, иначе обмена не будет. */
+   /** Новый игрок прислал маячок в чате — отвечаем один раз, иначе обмена не будет. */
    private void scheduleReply(String var1) {
-      if (!this.autoReply.isToggled()) {
-         return;
-      }
-
       long var2 = System.currentTimeMillis();
       Long var4 = this.lastReplyAt.get(var1);
       if (var4 != null && var2 - var4 < REPLY_THROTTLE_MS) {
@@ -279,7 +332,7 @@ public class CosmeticSync extends Function {
       }
    }
 
-   private void broadcast(String var1) {
+   private void broadcastChat(String var1) {
       if (mc.player == null || mc.getNetworkHandler() == null || mc.player.getGameProfile() == null) {
          return;
       }
@@ -293,26 +346,23 @@ public class CosmeticSync extends Function {
       StringBuilder var4 = new StringBuilder();
 
       for (Integer var6 : var3) {
-         if (var6 != null) {
-            if (var4.length() > 0) {
-               var4.append(',');
-            }
-
-            var4.append(var6);
+         if (var4.length() > 0) {
+            var4.append(',');
          }
+
+         var4.append(var6);
       }
 
       String var7 = PROTOCOL + "|" + LocalCosmetics.a() + "|" + clean(var2) + "|" + var4;
       String var8 = PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(var7.getBytes(StandardCharsets.UTF_8));
       mc.getNetworkHandler().sendChatMessage(var8);
-      this.lastSendAt = System.currentTimeMillis();
-      this.lastSignature = signature();
+      this.lastPublishAt = System.currentTimeMillis();
       if (var1.startsWith("ответ ")) {
-         this.lastReplyAt.put(var1.substring(6), this.lastSendAt);
+         this.lastReplyAt.put(var1.substring(6), this.lastPublishAt);
       }
 
       if (this.debug.isToggled()) {
-         CommandManager.d("§7[CosmeticSync] отправил (" + var1 + "): §f" + var3.size());
+         CommandManager.d("§7[CosmeticSync] чат-маячок (" + var1 + "): §f" + var3.size());
       }
    }
 
